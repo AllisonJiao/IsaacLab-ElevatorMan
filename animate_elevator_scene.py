@@ -32,7 +32,7 @@ from isaaclab.assets import AssetBaseCfg, ArticulationCfg, Articulation
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.utils import configclass
 
-from cfg.agibot import AGIBOT_A2D_CFG
+from isaaclab_assets.robots.agibot import AGIBOT_A2D_CFG  # isort: skip
 from cfg.elevator import ELEVATOR_CFG
 
 @configclass
