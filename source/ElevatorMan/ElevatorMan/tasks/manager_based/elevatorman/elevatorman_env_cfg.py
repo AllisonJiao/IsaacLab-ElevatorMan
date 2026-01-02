@@ -3,12 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import math
 import os
 from dataclasses import MISSING
 
-import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
@@ -19,30 +17,27 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import MassPropertiesCfg, RigidBodyPropertiesCfg
-from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
+from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.manager_based.manipulation.place import mdp as place_mdp
 from isaaclab_tasks.manager_based.manipulation.stack import mdp
 from isaaclab_tasks.manager_based.manipulation.stack.mdp import franka_stack_events
-
-# from . import mdp
+from isaaclab_tasks.manager_based.manipulation.stack.stack_env_cfg import ObjectTableSceneCfg
 
 ##
 # Pre-defined configs
 ##
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
-from isaaclab_assets.robots.agibot import AGIBOT_A2D_CFG
-# from cfg.elevator import ELEVATOR_CFG  # Commented out to debug arm wiggling
+from isaaclab_assets.robots.agibot import AGIBOT_A2D_CFG  # isort: skip
 from isaaclab.controllers.config.rmp_flow import AGIBOT_RIGHT_ARM_RMPFLOW_CFG  # isort: skip
 
 ##
-# Scene definition
+# Event settings
 ##
 
 
@@ -52,48 +47,35 @@ class EventCfgPlaceToy2Box:
 
     reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset", params={"reset_joint_targets": True})
 
-    # init_elevator_position = EventTerm(
-    #     func=franka_stack_events.randomize_object_pose,
-    #     mode="reset",
-    #     params={
-    #         "pose_range": {
-    #             "x": (0.0, 0.0),
-    #             "y": (0.0, 0.0),
-    #             "z": (0.0, 0.0),
-    #             "yaw": (0.0, 0.0),
-    #         },
-    #         "asset_cfgs": [SceneEntityCfg("elevator")],
-    #     },
-    # )
-
-
-@configclass
-class ElevatormanSceneCfg(InteractiveSceneCfg):
-    """Configuration for an elevator man scene."""
-
-    # robots: will be populated by agent env cfg
-    robot: ArticulationCfg = MISSING
-    # end-effector sensor: will be populated by agent env cfg
-    ee_frame: FrameTransformerCfg = MISSING
-
-    # plane
-    plane = AssetBaseCfg(
-        prim_path="/World/GroundPlane",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0, 0, -1.05]),
-        spawn=GroundPlaneCfg(),
+    init_toy_position = EventTerm(
+        func=franka_stack_events.randomize_object_pose,
+        mode="reset",
+        params={
+            "pose_range": {
+                "x": (-0.15, 0.20),
+                "y": (-0.3, -0.15),
+                "z": (-0.65, -0.65),
+                "yaw": (-3.14, 3.14),
+            },
+            "asset_cfgs": [SceneEntityCfg("toy_truck")],
+        },
+    )
+    init_box_position = EventTerm(
+        func=franka_stack_events.randomize_object_pose,
+        mode="reset",
+        params={
+            "pose_range": {
+                "x": (0.25, 0.35),
+                "y": (0.0, 0.10),
+                "z": (-0.55, -0.55),
+                "yaw": (-3.14, 3.14),
+            },
+            "asset_cfgs": [SceneEntityCfg("box")],
+        },
     )
 
-    # lights
-    light = AssetBaseCfg(
-        prim_path="/World/light",
-        spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
-    )
 
-    # articulations
-    # elevator: ArticulationCfg = ELEVATOR_CFG.replace(prim_path="/World/elevator")  # Commented out to debug arm wiggling
-
-
-##
+#
 # MDP settings
 ##
 
@@ -109,7 +91,21 @@ class ObservationsCfg:
         actions = ObsTerm(func=mdp.last_action)
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
-
+        toy_truck_positions = ObsTerm(
+            func=place_mdp.object_poses_in_base_frame,
+            params={"object_cfg": SceneEntityCfg("toy_truck"), "return_key": "pos"},
+        )
+        toy_truck_orientations = ObsTerm(
+            func=place_mdp.object_poses_in_base_frame,
+            params={"object_cfg": SceneEntityCfg("toy_truck"), "return_key": "quat"},
+        )
+        box_positions = ObsTerm(
+            func=place_mdp.object_poses_in_base_frame, params={"object_cfg": SceneEntityCfg("box"), "return_key": "pos"}
+        )
+        box_orientations = ObsTerm(
+            func=place_mdp.object_poses_in_base_frame,
+            params={"object_cfg": SceneEntityCfg("box"), "return_key": "quat"},
+        )
         eef_pos = ObsTerm(func=mdp.ee_frame_pose_in_base_frame, params={"return_key": "pos"})
         eef_quat = ObsTerm(func=mdp.ee_frame_pose_in_base_frame, params={"return_key": "quat"})
         gripper_pos = ObsTerm(func=mdp.gripper_pos)
@@ -122,15 +118,15 @@ class ObservationsCfg:
     class SubtaskCfg(ObsGroup):
         """Observations for subtask group."""
 
-        # grasp = ObsTerm(
-        #     func=place_mdp.object_grasped,
-        #     params={
-        #         "robot_cfg": SceneEntityCfg("robot"),
-        #         "ee_frame_cfg": SceneEntityCfg("ee_frame"),
-        #         "object_cfg": SceneEntityCfg("elevator"),  # Commented out to debug arm wiggling
-        #         "diff_threshold": 0.05,
-        #     },
-        # )
+        grasp = ObsTerm(
+            func=place_mdp.object_grasped,
+            params={
+                "robot_cfg": SceneEntityCfg("robot"),
+                "ee_frame_cfg": SceneEntityCfg("ee_frame"),
+                "object_cfg": SceneEntityCfg("toy_truck"),
+                "diff_threshold": 0.05,
+            },
+        )
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -138,7 +134,7 @@ class ObservationsCfg:
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
-    # subtask_terms: SubtaskCfg = SubtaskCfg()  # Commented out since elevator is disabled
+    subtask_terms: SubtaskCfg = SubtaskCfg()
 
 
 @configclass
@@ -156,16 +152,29 @@ class TerminationsCfg:
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
+    toy_truck_dropping = DoneTerm(
+        func=mdp.root_height_below_minimum, params={"minimum_height": -0.85, "asset_cfg": SceneEntityCfg("toy_truck")}
+    )
 
-##
-# Environment configuration
-##
+    success = DoneTerm(
+        func=place_mdp.object_a_is_into_b,
+        params={
+            "robot_cfg": SceneEntityCfg("robot"),
+            "object_a_cfg": SceneEntityCfg("toy_truck"),
+            "object_b_cfg": SceneEntityCfg("box"),
+            "xy_threshold": 0.10,
+            "height_diff": 0.06,
+            "height_threshold": 0.04,
+        },
+    )
 
 
 @configclass
 class ElevatormanEnvCfg(ManagerBasedRLEnvCfg):
+    """Configuration for the elevatorman environment."""
+
     # Scene settings
-    scene: ElevatormanSceneCfg = ElevatormanSceneCfg(num_envs=1, env_spacing=3.0, replicate_physics=False)
+    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=4096, env_spacing=3.0, replicate_physics=False)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -180,7 +189,6 @@ class ElevatormanEnvCfg(ManagerBasedRLEnvCfg):
 
     def __post_init__(self):
         """Post initialization."""
-        # Set simulation parameters
 
         self.sim.render_interval = self.decimation
 
@@ -191,8 +199,13 @@ class ElevatormanEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.physx.friction_correlation_distance = 0.00625
 
         # set viewer to see the whole scene
-        self.viewer.eye = [3.5, 0.0, 3.2]
-        self.viewer.lookat = [0.0, 0.0, 0.5]
+        self.viewer.eye = [1.5, -1.0, 1.5]
+        self.viewer.lookat = [0.5, 0.0, 0.0]
+
+
+"""
+Env to Replay Sim2Lab Demonstrations with JointSpaceAction
+"""
 
 
 class RmpFlowAgibotElevatormanEnvCfg(ElevatormanEnvCfg):
@@ -201,20 +214,20 @@ class RmpFlowAgibotElevatormanEnvCfg(ElevatormanEnvCfg):
         # post init of parent
         super().__post_init__()
 
-        # Events are not needed for now - events is set to None in base class
+        self.events = EventCfgPlaceToy2Box()
 
-        # Set Agibot as robot - matching reference config
-        # OLD CODE (commented out):
-        # self.scene.robot = AGIBOT_A2D_CFG.replace(
-        #     prim_path="{ENV_REGEX_NS}/Robot",
-        #     init_state=ArticulationCfg.InitialStateCfg(
-        #         joint_pos=AGIBOT_A2D_CFG.init_state.joint_pos,  # preserve original joint positions
-        #         pos=(-2.0, -0.2, 0.0),  # Custom position for elevator setup
-        #         rot=(math.sqrt(0.5), 0.0, 0.0, -math.sqrt(0.5)),  # (w,x,y,z) - 90° rotation around x-axis
-        #     ),
-        # )
-        # NEW CODE (matching reference):
+        # Set Agibot as robot
         self.scene.robot = AGIBOT_A2D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+
+        # add table
+        self.scene.table = AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/Table",
+            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0.0, -0.7], rot=[0.707, 0, 0, 0.707]),
+            spawn=UsdFileCfg(
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
+                scale=(1.8, 1.0, 0.30),
+            ),
+        )
 
         use_relative_mode_env = os.getenv("USE_RELATIVE_MODE", "True")
         self.use_relative_mode = use_relative_mode_env.lower() in ["true", "1", "t"]
@@ -225,7 +238,7 @@ class RmpFlowAgibotElevatormanEnvCfg(ElevatormanEnvCfg):
             joint_names=["right_arm_joint.*"],
             body_name="right_gripper_center",
             controller=AGIBOT_RIGHT_ARM_RMPFLOW_CFG,
-            scale=1.0,  # Keep scale at 1.0 for teleop - sensitivity is controlled by device config
+            scale=1.0,
             body_offset=RMPFlowActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.0]),
             articulation_prim_expr="/World/envs/env_.*/Robot",
             use_relative_mode=self.use_relative_mode,
@@ -243,6 +256,43 @@ class RmpFlowAgibotElevatormanEnvCfg(ElevatormanEnvCfg):
         self.gripper_joint_names = ["right_hand_joint1", "right_Right_1_Joint"]
         self.gripper_open_val = 0.994
         self.gripper_threshold = 0.2
+
+        # Rigid body properties of toy_truck and box
+        toy_truck_properties = RigidBodyPropertiesCfg(
+            solver_position_iteration_count=16,
+            solver_velocity_iteration_count=1,
+            max_angular_velocity=1000.0,
+            max_linear_velocity=1000.0,
+            max_depenetration_velocity=5.0,
+            disable_gravity=False,
+        )
+
+        box_properties = toy_truck_properties.copy()
+
+        # Notes: remember to add Physics/Mass properties to the toy_truck mesh to make grasping successful,
+        # then you can use below MassPropertiesCfg to set the mass of the toy_truck
+        toy_mass_properties = MassPropertiesCfg(
+            mass=0.05,
+        )
+
+        self.scene.toy_truck = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/ToyTruck",
+            init_state=RigidObjectCfg.InitialStateCfg(),
+            spawn=UsdFileCfg(
+                usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Objects/ToyTruck/toy_truck.usd",
+                rigid_props=toy_truck_properties,
+                mass_props=toy_mass_properties,
+            ),
+        )
+
+        self.scene.box = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Box",
+            init_state=RigidObjectCfg.InitialStateCfg(),
+            spawn=UsdFileCfg(
+                usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Objects/Box/box.usd",
+                rigid_props=box_properties,
+            ),
+        )
 
         # Listens to the required transforms
         self.marker_cfg = FRAME_MARKER_CFG.copy()
@@ -264,25 +314,25 @@ class RmpFlowAgibotElevatormanEnvCfg(ElevatormanEnvCfg):
             ],
         )
 
-        # add contact force sensor for grasped checking (if needed)
+        # add contact force sensor for grasped checking
         self.scene.contact_grasp = ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Robot/right_.*_Pad_Link",
             update_period=0.05,
             history_length=6,
             debug_vis=True,
-            filter_prim_paths_expr=[],  # Add filter patterns here if needed
+            filter_prim_paths_expr=["{ENV_REGEX_NS}/ToyTruck"],
         )
 
         self.teleop_devices = DevicesCfg(
             devices={
                 "keyboard": Se3KeyboardCfg(
-                    pos_sensitivity=0.05,  # Same as reference - adjust if needed
-                    rot_sensitivity=0.05,  # Same as reference - adjust if needed
+                    pos_sensitivity=0.05,
+                    rot_sensitivity=0.05,
                     sim_device=self.sim.device,
                 ),
                 "spacemouse": Se3SpaceMouseCfg(
-                    pos_sensitivity=0.05,  # Same as reference
-                    rot_sensitivity=0.05,  # Same as reference
+                    pos_sensitivity=0.05,
+                    rot_sensitivity=0.05,
                     sim_device=self.sim.device,
                 ),
             }
@@ -294,4 +344,3 @@ class RmpFlowAgibotElevatormanEnvCfg(ElevatormanEnvCfg):
 
         self.decimation = 3
         self.episode_length_s = 30.0
-
