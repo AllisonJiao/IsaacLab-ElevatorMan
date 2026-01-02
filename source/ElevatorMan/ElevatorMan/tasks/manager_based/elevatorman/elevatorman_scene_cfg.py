@@ -12,6 +12,8 @@ from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransf
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
 from isaaclab.utils import configclass
 
+from cfg.elevator import ELEVATOR_CFG
+
 
 ##
 # Scene definition
@@ -40,4 +42,7 @@ class ElevatormanSceneCfg(InteractiveSceneCfg):
         prim_path="/World/light",
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
     )
+
+    # Elevator
+    elevator: ArticulationCfg = ELEVATOR_CFG.replace(prim_path="{ENV_REGEX_NS}/Elevator")
 
