@@ -202,9 +202,15 @@ class RmpFlowAgibotElevatormanEnvCfg(ElevatormanEnvCfg):
         # Events are not needed for now - events is set to None in base class
 
         # Set Agibot as robot
-        # Match reference config: no scale/rotation modifications for better teleop control
-        # The default position (-0.6, 0.0, -1.05) is optimized for teleoperation
-        self.scene.robot = AGIBOT_A2D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        # Keep custom position and rotation for elevator setup
+        self.scene.robot = AGIBOT_A2D_CFG.replace(
+            prim_path="{ENV_REGEX_NS}/Robot",
+            init_state=ArticulationCfg.InitialStateCfg(
+                joint_pos=AGIBOT_A2D_CFG.init_state.joint_pos,  # preserve original joint positions
+                pos=(-2.0, -0.2, 1.2),  # Custom position for elevator setup
+                rot=(math.sqrt(0.5), 0.0, 0.0, -math.sqrt(0.5)),  # (w,x,y,z) - 90° rotation around x-axis
+            ),
+        )
 
         use_relative_mode_env = os.getenv("USE_RELATIVE_MODE", "True")
         self.use_relative_mode = use_relative_mode_env.lower() in ["true", "1", "t"]
