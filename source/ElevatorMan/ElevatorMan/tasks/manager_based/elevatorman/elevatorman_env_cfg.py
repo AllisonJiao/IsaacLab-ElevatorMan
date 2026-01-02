@@ -27,7 +27,9 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdF
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
+from isaaclab_tasks.manager_based.manipulation.place import mdp as place_mdp
 from isaaclab_tasks.manager_based.manipulation.stack import mdp
+from isaaclab_tasks.manager_based.manipulation.stack.mdp import franka_stack_events
 
 # from . import mdp
 
@@ -43,10 +45,26 @@ from isaaclab.controllers.config.rmp_flow import AGIBOT_RIGHT_ARM_RMPFLOW_CFG  #
 # Scene definition
 ##
 
+
 @configclass
-class EventElevatorman:
-    """Configuration for the elevator man event."""
+class EventCfgPlaceToy2Box:
+    """Configuration for events."""
+
     reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset", params={"reset_joint_targets": True})
+
+    init_elevator_position = EventTerm(
+        func=franka_stack_events.randomize_object_pose,
+        mode="reset",
+        params={
+            "pose_range": {
+                "x": (0.0, 0.0),
+                "y": (0.0, 0.0),
+                "z": (0.0, 0.0),
+                "yaw": (0.0, 0.0),
+            },
+            "asset_cfgs": [SceneEntityCfg("elevator")],
+        },
+    )
 
 
 @configclass
@@ -64,26 +82,13 @@ class ElevatormanSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0)),
     )
 
-    # articulations
-    # elevator (static for now - can be made kinematic/static by modifying rigid_body_enabled in spawn config)
-    elevator: ArticulationCfg = ELEVATOR_CFG.replace(
-        prim_path="/World/elevator",
-        spawn=ELEVATOR_CFG.spawn.replace(
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                rigid_body_enabled=True,  # Set to False to make completely static, or keep True but disable actuators
-                max_linear_velocity=1000.0,
-                max_angular_velocity=1000.0,
-                max_depenetration_velocity=100.0,
-                enable_gyroscopic_forces=True,
-            ),
-        ),
+    dome_light = AssetBaseCfg(
+        prim_path="/World/Light",
+        spawn=sim_utils.DomeLightCfg(intensity=3000.0),
     )
 
-    # lights
-    dome_light = AssetBaseCfg(
-        prim_path="/World/DomeLight",
-        spawn=sim_utils.DomeLightCfg(color=(0.9, 0.9, 0.9), intensity=500.0),
-    )
+    # articulations
+    elevator: ArticulationCfg = ELEVATOR_CFG.replace(prim_path="/World/elevator")
 
 
 ##
@@ -111,8 +116,27 @@ class ObservationsCfg:
             self.enable_corruption = False
             self.concatenate_terms = False
 
+    @configclass
+    class SubtaskCfg(ObsGroup):
+        """Observations for subtask group."""
+
+        grasp = ObsTerm(
+            func=place_mdp.object_grasped,
+            params={
+                "robot_cfg": SceneEntityCfg("robot"),
+                "ee_frame_cfg": SceneEntityCfg("ee_frame"),
+                "object_cfg": SceneEntityCfg("elevator"),
+                "diff_threshold": 0.05,
+            },
+        )
+
+        def __post_init__(self):
+            self.enable_corruption = False
+            self.concatenate_terms = False
+
     # observation groups
     policy: PolicyCfg = PolicyCfg()
+    subtask_terms: SubtaskCfg = SubtaskCfg()
 
 
 @configclass
@@ -138,10 +162,6 @@ class TerminationsCfg:
 
 @configclass
 class ElevatormanEnvCfg(ManagerBasedRLEnvCfg):
-    # Environment settings
-    decimation: int = 3
-    episode_length_s: float = 30.0
-    
     # Scene settings
     scene: ElevatormanSceneCfg = ElevatormanSceneCfg(num_envs=1, env_spacing=3.0, replicate_physics=False)
     # Basic settings
@@ -159,7 +179,7 @@ class ElevatormanEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self):
         """Post initialization."""
         # Set simulation parameters
-        self.sim.dt = 1 / 60
+
         self.sim.render_interval = self.decimation
 
         self.sim.physx.bounce_threshold_velocity = 0.2
@@ -243,13 +263,13 @@ class RmpFlowAgibotElevatormanEnvCfg(ElevatormanEnvCfg):
         )
 
         # add contact force sensor for grasped checking (if needed)
-        # self.scene.contact_grasp = ContactSensorCfg(
-        #     prim_path="{ENV_REGEX_NS}/Robot/right_.*_Pad_Link",
-        #     update_period=0.05,
-        #     history_length=6,
-        #     debug_vis=True,
-        #     filter_prim_paths_expr=[],  # Add filter patterns here if needed
-        # )
+        self.scene.contact_grasp = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/right_.*_Pad_Link",
+            update_period=0.05,
+            history_length=6,
+            debug_vis=True,
+            filter_prim_paths_expr=[],  # Add filter patterns here if needed
+        )
 
         self.teleop_devices = DevicesCfg(
             devices={
