@@ -202,17 +202,9 @@ class RmpFlowAgibotElevatormanEnvCfg(ElevatormanEnvCfg):
         # Events are not needed for now - events is set to None in base class
 
         # Set Agibot as robot
-        self.scene.robot = AGIBOT_A2D_CFG.replace(
-            prim_path="{ENV_REGEX_NS}/Robot",
-            spawn=AGIBOT_A2D_CFG.spawn.replace(
-                scale=(1.2, 1.2, 1.2),
-            ),
-            init_state=ArticulationCfg.InitialStateCfg(
-                joint_pos=AGIBOT_A2D_CFG.init_state.joint_pos,  # preserve original joint positions
-                pos=(-2.0, -0.2, 0.0),
-                rot=(math.sqrt(0.5), 0.0, 0.0, -math.sqrt(0.5)), # (w,x,y,z)
-            ),
-        )
+        # Match reference config: no scale/rotation modifications for better teleop control
+        # The default position (-0.6, 0.0, -1.05) is optimized for teleoperation
+        self.scene.robot = AGIBOT_A2D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
         use_relative_mode_env = os.getenv("USE_RELATIVE_MODE", "True")
         self.use_relative_mode = use_relative_mode_env.lower() in ["true", "1", "t"]
@@ -223,7 +215,7 @@ class RmpFlowAgibotElevatormanEnvCfg(ElevatormanEnvCfg):
             joint_names=["right_arm_joint.*"],
             body_name="right_gripper_center",
             controller=AGIBOT_RIGHT_ARM_RMPFLOW_CFG,
-            scale=1.0,
+            scale=1.0,  # Keep scale at 1.0 for teleop - sensitivity is controlled by device config
             body_offset=RMPFlowActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.0]),
             articulation_prim_expr="/World/envs/env_.*/Robot",
             use_relative_mode=self.use_relative_mode,
@@ -274,13 +266,13 @@ class RmpFlowAgibotElevatormanEnvCfg(ElevatormanEnvCfg):
         self.teleop_devices = DevicesCfg(
             devices={
                 "keyboard": Se3KeyboardCfg(
-                    pos_sensitivity=0.05,
-                    rot_sensitivity=0.05,
+                    pos_sensitivity=0.05,  # Same as reference - adjust if needed
+                    rot_sensitivity=0.05,  # Same as reference - adjust if needed
                     sim_device=self.sim.device,
                 ),
                 "spacemouse": Se3SpaceMouseCfg(
-                    pos_sensitivity=0.05,
-                    rot_sensitivity=0.05,
+                    pos_sensitivity=0.05,  # Same as reference
+                    rot_sensitivity=0.05,  # Same as reference
                     sim_device=self.sim.device,
                 ),
             }
