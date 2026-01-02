@@ -207,7 +207,7 @@ class RmpFlowAgibotElevatormanEnvCfg(ElevatormanEnvCfg):
             prim_path="{ENV_REGEX_NS}/Robot",
             init_state=ArticulationCfg.InitialStateCfg(
                 joint_pos=AGIBOT_A2D_CFG.init_state.joint_pos,  # preserve original joint positions
-                pos=(-2.0, -0.2, 1.2),  # Custom position for elevator setup
+                pos=(-2.0, -0.2, 0.0),  # Custom position for elevator setup
                 rot=(math.sqrt(0.5), 0.0, 0.0, -math.sqrt(0.5)),  # (w,x,y,z) - 90° rotation around x-axis
             ),
         )
