@@ -3,10 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import math
 import os
 from dataclasses import MISSING
 
-from isaaclab.assets import AssetBaseCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
@@ -138,7 +139,15 @@ class RmpFlowAgibotElevatormanEnvCfg(ElevatormanEnvCfg):
         self.events = EventCfgElevatorman()
 
         # Set Agibot as robot
-        self.scene.robot = AGIBOT_A2D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        # Use position and rotation from animate_elevator_scene.py
+        self.scene.robot = AGIBOT_A2D_CFG.replace(
+            prim_path="{ENV_REGEX_NS}/Robot",
+            init_state=ArticulationCfg.InitialStateCfg(
+                joint_pos=AGIBOT_A2D_CFG.init_state.joint_pos,  # preserve original joint positions
+                pos=(-2.0, -0.2, 0.0),
+                rot=(math.sqrt(0.5), 0.0, 0.0, -math.sqrt(0.5)),  # (w,x,y,z) - 90° rotation around x-axis
+            ),
+        )
 
         use_relative_mode_env = os.getenv("USE_RELATIVE_MODE", "True")
         self.use_relative_mode = use_relative_mode_env.lower() in ["true", "1", "t"]
