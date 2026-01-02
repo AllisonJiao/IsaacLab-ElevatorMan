@@ -26,7 +26,7 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdF
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
-from source.ElevatorMan.ElevatorMan.tasks.manager_based.manipulation.stack import mdp
+from isaaclab_tasks.manager_based.manipulation.stack import mdp
 
 # from . import mdp
 
