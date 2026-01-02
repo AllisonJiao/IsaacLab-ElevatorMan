@@ -38,7 +38,7 @@ from isaaclab_tasks.manager_based.manipulation.stack.mdp import franka_stack_eve
 ##
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 from isaaclab_assets.robots.agibot import AGIBOT_A2D_CFG
-from cfg.elevator import ELEVATOR_CFG
+# from cfg.elevator import ELEVATOR_CFG  # Commented out to debug arm wiggling
 from isaaclab.controllers.config.rmp_flow import AGIBOT_RIGHT_ARM_RMPFLOW_CFG  # isort: skip
 
 ##
@@ -52,19 +52,19 @@ class EventCfgPlaceToy2Box:
 
     reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset", params={"reset_joint_targets": True})
 
-    init_elevator_position = EventTerm(
-        func=franka_stack_events.randomize_object_pose,
-        mode="reset",
-        params={
-            "pose_range": {
-                "x": (0.0, 0.0),
-                "y": (0.0, 0.0),
-                "z": (0.0, 0.0),
-                "yaw": (0.0, 0.0),
-            },
-            "asset_cfgs": [SceneEntityCfg("elevator")],
-        },
-    )
+    # init_elevator_position = EventTerm(
+    #     func=franka_stack_events.randomize_object_pose,
+    #     mode="reset",
+    #     params={
+    #         "pose_range": {
+    #             "x": (0.0, 0.0),
+    #             "y": (0.0, 0.0),
+    #             "z": (0.0, 0.0),
+    #             "yaw": (0.0, 0.0),
+    #         },
+    #         "asset_cfgs": [SceneEntityCfg("elevator")],
+    #     },
+    # )
 
 
 @configclass
@@ -88,7 +88,7 @@ class ElevatormanSceneCfg(InteractiveSceneCfg):
     )
 
     # articulations
-    elevator: ArticulationCfg = ELEVATOR_CFG.replace(prim_path="/World/elevator")
+    # elevator: ArticulationCfg = ELEVATOR_CFG.replace(prim_path="/World/elevator")  # Commented out to debug arm wiggling
 
 
 ##
@@ -120,15 +120,15 @@ class ObservationsCfg:
     class SubtaskCfg(ObsGroup):
         """Observations for subtask group."""
 
-        grasp = ObsTerm(
-            func=place_mdp.object_grasped,
-            params={
-                "robot_cfg": SceneEntityCfg("robot"),
-                "ee_frame_cfg": SceneEntityCfg("ee_frame"),
-                "object_cfg": SceneEntityCfg("elevator"),
-                "diff_threshold": 0.05,
-            },
-        )
+        # grasp = ObsTerm(
+        #     func=place_mdp.object_grasped,
+        #     params={
+        #         "robot_cfg": SceneEntityCfg("robot"),
+        #         "ee_frame_cfg": SceneEntityCfg("ee_frame"),
+        #         "object_cfg": SceneEntityCfg("elevator"),  # Commented out to debug arm wiggling
+        #         "diff_threshold": 0.05,
+        #     },
+        # )
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -136,7 +136,7 @@ class ObservationsCfg:
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
-    subtask_terms: SubtaskCfg = SubtaskCfg()
+    # subtask_terms: SubtaskCfg = SubtaskCfg()  # Commented out since elevator is disabled
 
 
 @configclass
