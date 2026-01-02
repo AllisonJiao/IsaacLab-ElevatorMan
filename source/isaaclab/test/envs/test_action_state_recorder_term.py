@@ -24,7 +24,7 @@ import pytest
 
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 
-import isaaclab_tasks  # noqa: F401
+import source.isaaclab_tasks as isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 
