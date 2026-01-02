@@ -166,7 +166,7 @@ class ElevatormanEnvCfg(ManagerBasedRLEnvCfg):
         self.viewer.eye = [1.5, -1.0, 1.5]
         self.viewer.lookat = [0.5, 0.0, 0.0]
 
-class RmpFlowAgibotPlaceToy2BoxEnvCfg(ElevatormanEnvCfg):
+class RmpFlowAgibotElevatormanEnvCfg(ElevatormanEnvCfg):
 
     def __post_init__(self):
         # post init of parent
