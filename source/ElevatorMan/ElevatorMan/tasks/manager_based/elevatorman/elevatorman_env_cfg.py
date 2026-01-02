@@ -8,7 +8,7 @@ import os
 from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
@@ -16,23 +16,27 @@ from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.actions.rmpflow_actions_cfg import RMPFlowActionCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import FrameTransformerCfg
+from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
+from isaaclab.sim.schemas.schemas_cfg import MassPropertiesCfg, RigidBodyPropertiesCfg
+from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
-from isaaclab_tasks.manager_based.manipulation.stack import mdp
+from source.ElevatorMan.ElevatorMan.tasks.manager_based.manipulation.stack import mdp
 
 # from . import mdp
 
 ##
 # Pre-defined configs
 ##
-from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
-from isaaclab_assets.robots.agibot import AGIBOT_A2D_CFG  # isort: skip
-from isaaclab.controllers.config.rmp_flow import AGIBOT_RIGHT_ARM_RMPFLOW_CFG  # isort: skip
+from source.markers.config import FRAME_MARKER_CFG  # isort: skip
+from cfg.agibot import AGIBOT_A2D_CFG
 from cfg.elevator import ELEVATOR_CFG
+from source.controllers.cfg.rmp_flow import AGIBOT_RIGHT_ARM_RMPFLOW_CFG  # isort: skip
 
 ##
 # Scene definition
@@ -162,7 +166,7 @@ class ElevatormanEnvCfg(ManagerBasedRLEnvCfg):
         self.viewer.eye = [1.5, -1.0, 1.5]
         self.viewer.lookat = [0.5, 0.0, 0.0]
 
-class RmpFlowAgibotElevatormanEnvCfg(ElevatormanEnvCfg):
+class RmpFlowAgibotPlaceToy2BoxEnvCfg(ElevatormanEnvCfg):
 
     def __post_init__(self):
         # post init of parent
@@ -230,6 +234,15 @@ class RmpFlowAgibotElevatormanEnvCfg(ElevatormanEnvCfg):
                 ),
             ],
         )
+
+        # add contact force sensor for grasped checking (if needed)
+        # self.scene.contact_grasp = ContactSensorCfg(
+        #     prim_path="{ENV_REGEX_NS}/Robot/right_.*_Pad_Link",
+        #     update_period=0.05,
+        #     history_length=6,
+        #     debug_vis=True,
+        #     filter_prim_paths_expr=[],  # Add filter patterns here if needed
+        # )
 
         self.teleop_devices = DevicesCfg(
             devices={
