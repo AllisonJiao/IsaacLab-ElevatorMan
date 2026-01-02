@@ -91,7 +91,9 @@ def main() -> None:
         None
     """
     # parse configuration
-    env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs)
+    env_cfg = parse_env_cfg(
+        args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs
+    )
     print(env_cfg)
     env_cfg.env_name = args_cli.task
     print(env_cfg.env_name)
