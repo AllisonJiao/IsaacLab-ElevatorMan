@@ -33,10 +33,10 @@ from isaaclab_tasks.manager_based.manipulation.stack import mdp
 ##
 # Pre-defined configs
 ##
-from source.markers.config import FRAME_MARKER_CFG  # isort: skip
+from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 from cfg.agibot import AGIBOT_A2D_CFG
 from cfg.elevator import ELEVATOR_CFG
-from source.controllers.cfg.rmp_flow import AGIBOT_RIGHT_ARM_RMPFLOW_CFG  # isort: skip
+from isaaclab.controllers.cfg.rmp_flow import AGIBOT_RIGHT_ARM_RMPFLOW_CFG  # isort: skip
 
 ##
 # Scene definition
