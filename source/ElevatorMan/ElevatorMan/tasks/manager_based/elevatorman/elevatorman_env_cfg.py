@@ -24,7 +24,6 @@ from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.manager_based.manipulation.stack import mdp
-from isaaclab_tasks.manager_based.manipulation.stack.mdp import franka_stack_events
 
 from .elevatorman_scene_cfg import ElevatormanSceneCfg
 
@@ -41,37 +40,10 @@ from isaaclab.controllers.config.rmp_flow import AGIBOT_RIGHT_ARM_RMPFLOW_CFG  #
 
 
 @configclass
-class EventCfgPlaceToy2Box:
+class EventCfgElevatorman:
     """Configuration for events."""
 
     reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset", params={"reset_joint_targets": True})
-
-    init_toy_position = EventTerm(
-        func=franka_stack_events.randomize_object_pose,
-        mode="reset",
-        params={
-            "pose_range": {
-                "x": (-0.15, 0.20),
-                "y": (-0.3, -0.15),
-                "z": (-0.65, -0.65),
-                "yaw": (-3.14, 3.14),
-            },
-            "asset_cfgs": [SceneEntityCfg("toy_truck")],
-        },
-    )
-    init_box_position = EventTerm(
-        func=franka_stack_events.randomize_object_pose,
-        mode="reset",
-        params={
-            "pose_range": {
-                "x": (0.25, 0.35),
-                "y": (0.0, 0.10),
-                "z": (-0.55, -0.55),
-                "yaw": (-3.14, 3.14),
-            },
-            "asset_cfgs": [SceneEntityCfg("box")],
-        },
-    )
 
 
 #
@@ -163,7 +135,7 @@ class RmpFlowAgibotElevatormanEnvCfg(ElevatormanEnvCfg):
         # post init of parent
         super().__post_init__()
 
-        self.events = EventCfgPlaceToy2Box()
+        self.events = EventCfgElevatorman()
 
         # Set Agibot as robot
         self.scene.robot = AGIBOT_A2D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
