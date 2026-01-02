@@ -9,10 +9,17 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg
-from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
+from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass
 
-from cfg.elevator import ELEVATOR_CFG
+import os
+
+# Get the absolute path to the elevator asset
+# This file is at: source/ElevatorMan/ElevatorMan/tasks/manager_based/elevatorman/elevatorman_scene_cfg.py
+# Project root is 6 levels up: elevatorman -> manager_based -> tasks -> ElevatorMan -> ElevatorMan -> source -> root
+_CUR_DIR = os.path.dirname(os.path.realpath(__file__))
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(_CUR_DIR))))))
+ELEVATOR_ASSET_PATH = os.path.join(_PROJECT_ROOT, "assets", "Collected_elevator_urdf", "elevator.usd")
 
 
 ##
@@ -44,5 +51,8 @@ class ElevatormanSceneCfg(InteractiveSceneCfg):
     )
 
     # Elevator
-    elevator: ArticulationCfg = ELEVATOR_CFG.replace(prim_path="{ENV_REGEX_NS}/Elevator")
+    elevator = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Elevator",
+        spawn=UsdFileCfg(usd_path=ELEVATOR_ASSET_PATH),
+    )
 
