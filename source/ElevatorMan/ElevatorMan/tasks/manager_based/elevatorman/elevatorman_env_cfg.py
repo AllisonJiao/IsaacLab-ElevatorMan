@@ -14,6 +14,7 @@ from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.actions.rmpflow_actions_cfg import RMPFlowActionCfg
+from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
@@ -41,6 +42,11 @@ from isaaclab.controllers.config.rmp_flow import AGIBOT_RIGHT_ARM_RMPFLOW_CFG  #
 ##
 # Scene definition
 ##
+
+@configclass
+class EventElevatorman:
+    """Configuration for the elevator man event."""
+    reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset", params={"reset_joint_targets": True})
 
 
 @configclass
@@ -86,15 +92,6 @@ class ElevatormanSceneCfg(InteractiveSceneCfg):
 
 
 @configclass
-class ActionsCfg:
-    """Action specifications for the MDP."""
-
-    # will be set by agent env cfg
-    arm_action: mdp.JointPositionActionCfg = MISSING
-    gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
-
-
-@configclass
 class ObservationsCfg:
     """Observation specifications for the MDP."""
 
@@ -116,6 +113,15 @@ class ObservationsCfg:
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
+
+
+@configclass
+class ActionsCfg:
+    """Action specifications for the MDP."""
+
+    # will be set by agent env cfg
+    arm_action: mdp.JointPositionActionCfg = MISSING
+    gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
 
 
 @configclass
@@ -163,8 +169,9 @@ class ElevatormanEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.physx.friction_correlation_distance = 0.00625
 
         # set viewer to see the whole scene
-        self.viewer.eye = [1.5, -1.0, 1.5]
-        self.viewer.lookat = [0.5, 0.0, 0.0]
+        self.viewer.eye = [3.5, 0.0, 3.2]
+        self.viewer.lookat = [0.0, 0.0, 0.5]
+
 
 class RmpFlowAgibotElevatormanEnvCfg(ElevatormanEnvCfg):
 
@@ -265,3 +272,4 @@ class RmpFlowAgibotElevatormanEnvCfg(ElevatormanEnvCfg):
 
         self.decimation = 3
         self.episode_length_s = 30.0
+
