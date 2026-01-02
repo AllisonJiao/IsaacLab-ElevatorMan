@@ -92,7 +92,9 @@ def main() -> None:
     """
     # parse configuration
     env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs)
+    print(env_cfg)
     env_cfg.env_name = args_cli.task
+    print(env_cfg.env_name)
     # modify configuration
     env_cfg.terminations.time_out = None
     if "Lift" in args_cli.task:
