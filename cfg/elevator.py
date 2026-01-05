@@ -58,7 +58,7 @@ ELEVATOR_CFG = ArticulationCfg(
             "button_3_1_joint": 0.0,
             "door2_joint": 0.0,
         },
-        pos=(0.0, 0.0, 0.0),  # init pos of the articulation for teleop
+        pos=(0.0, 0.0, -1.05),  # init pos of the articulation for teleop
     ),
     actuators={
         # Elevator buttons
