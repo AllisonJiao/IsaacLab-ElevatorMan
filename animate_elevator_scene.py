@@ -60,7 +60,7 @@ class ElevatorSceneCfg(InteractiveSceneCfg):
         ),
         init_state=ArticulationCfg.InitialStateCfg(
             joint_pos=AGIBOT_A2D_CFG.init_state.joint_pos,  # preserve original joint positions
-            pos=(-2.0, -0.2, 0.0),
+            pos=(-2.0, 0.0, -1.05),
             rot=(math.sqrt(0.5), 0.0, 0.0, -math.sqrt(0.5)), # (w,x,y,z)
         ),
     )
