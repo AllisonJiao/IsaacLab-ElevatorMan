@@ -145,7 +145,7 @@ class RmpFlowAgibotElevatormanEnvCfg(ElevatormanEnvCfg):
             prim_path="{ENV_REGEX_NS}/Robot",
             init_state=ArticulationCfg.InitialStateCfg(
                 joint_pos=AGIBOT_A2D_CFG.init_state.joint_pos,  # preserve original joint positions
-                pos=(-2.0, 1.0, -1.05),  # z=0.0: ground is at z=-1.05, so robot is 1.05 units above ground
+                pos=(-2.0, 1.4, -1.05),  # z=0.0: ground is at z=-1.05
                 rot=(math.sqrt(0.5), 0.0, 0.0, -math.sqrt(0.5)),  # (w,x,y,z) - 90° rotation around x-axis
             ),
         )
