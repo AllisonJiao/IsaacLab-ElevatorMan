@@ -22,7 +22,7 @@ from isaaclab.assets.articulation import ArticulationCfg
 # This assumes the cfg directory is at the project root level
 _CUR_DIR = os.path.dirname(os.path.realpath(__file__))
 _PROJECT_ROOT = os.path.dirname(_CUR_DIR)
-ELEVATOR_ASSET_PATH = os.path.join(_PROJECT_ROOT, "assets", "Collected_elevator_urdf", "elevator.usd")
+ELEVATOR_ASSET_PATH = os.path.join(_PROJECT_ROOT, "assets", "elevator", "elevator.usd")
 
 ##
 # Configuration
