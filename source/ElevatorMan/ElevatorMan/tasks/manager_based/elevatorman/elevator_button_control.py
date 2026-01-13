@@ -54,17 +54,21 @@ class DoorStatus(Enum):
 # Replace these with your actual Isaac Lab / Isaac Sim calls.
 
 class IsaacSimElevatorAPI:
+    # ANSI color codes for terminal output
+    GREEN = '\033[92m'
+    RESET = '\033[0m'
+    
     def go_to_next_floor(self, floor: int) -> None:
-        print(f"[IsaacSim] go_to_next_floor({floor})")
+        print(f"{self.GREEN}[IsaacSim] go_to_next_floor({floor}){self.RESET}")
 
     def stop_elevator(self) -> None:
-        print("[IsaacSim] stop_elevator()")
+        print(f"{self.GREEN}[IsaacSim] stop_elevator(){self.RESET}")
 
     def open_elevator_door(self) -> None:
-        print("[IsaacSim] open_elevator_door()")
+        print(f"{self.GREEN}[IsaacSim] open_elevator_door(){self.RESET}")
 
     def close_elevator_door(self) -> None:
-        print("[IsaacSim] close_elevator_door()")
+        print(f"{self.GREEN}[IsaacSim] close_elevator_door(){self.RESET}")
 
 
 # --------- Inputs each tick ---------
@@ -313,8 +317,21 @@ class ElevatorController:
 
         elif self.elevator_direction == Direction.DOWN:
             if self.max_floor_heap:
+                self.logger.log(
+                    self.tick,
+                    "POPPING_FROM_QUEUE",
+                    queue="max_floor_heap",
+                    queue_contents_before=[-f for f in self.max_floor_heap],
+                    current_floor=self.current_floor
+                )
                 f = -heapq.heappop(self.max_floor_heap)
                 self.pending_below.discard(f)
+                self.logger.log(
+                    self.tick,
+                    "POPPED_FROM_QUEUE",
+                    floor=f,
+                    queue_contents_after=[-f for f in self.max_floor_heap]
+                )
                 return f
             # Switch direction if current direction is empty
             if self.min_floor_heap:
@@ -592,7 +609,8 @@ if __name__ == "__main__":
     import signal
     
     sim = IsaacSimElevatorAPI()
-    ctrl = ElevatorController(sim=sim, logger=ElevatorLogger(), current_floor=0, door_status=DoorStatus.CLOSED)
+    # Set print_realtime=False to reduce logging - only Isaac Sim prints will show
+    ctrl = ElevatorController(sim=sim, logger=ElevatorLogger(print_realtime=True), current_floor=0, door_status=DoorStatus.CLOSED)
 
     # Test timeline: button presses at specific ticks
     # Format: (tick, ElevatorInputs)
@@ -602,8 +620,8 @@ if __name__ == "__main__":
         31: ElevatorInputs(floor_button_pressed=True, floor_button_floor_num=2),
         550: ElevatorInputs(floor_button_pressed=True, floor_button_floor_num=3),
         # Add more test inputs as needed:
-        # 100: ElevatorInputs(open_button_pressed=True),
-        # 200: ElevatorInputs(close_button_pressed=True),
+        100: ElevatorInputs(open_button_pressed=True),
+        200: ElevatorInputs(close_button_pressed=True),
     }
 
     # Track movement for simulating floor arrivals
