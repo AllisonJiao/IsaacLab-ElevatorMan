@@ -83,18 +83,14 @@ class DoorCommandAction(ActionTerm):
         door_command = self._env.command_manager.get_command(self._command_name)
         
         # door_command shape is (num_envs, 1)
-        # Extract the door position value
-        door_position = door_command.squeeze(-1)  # Shape: (num_envs,)
+        # When joint_ids is specified, set_joint_position_target expects shape (num_envs, len(joint_ids))
+        # So we need to keep the shape as (num_envs, 1) for a single joint
+        door_position = door_command  # Shape: (num_envs, 1)
         
-        # Get current joint positions for all joints
-        current_positions = self._asset.data.joint_pos.clone()
-        
-        # Update only the door joint position
-        current_positions[:, self._door_joint_idx] = door_position
-        
-        # Apply the updated position to the door joint
+        # Apply the door position target to the door joint
+        # target shape must be (num_envs, 1) when joint_ids=[self._door_joint_idx]
         self._asset.set_joint_position_target(
-            current_positions,
+            door_position,
             joint_ids=[self._door_joint_idx]
         )
 
