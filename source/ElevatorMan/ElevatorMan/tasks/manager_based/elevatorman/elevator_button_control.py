@@ -357,7 +357,7 @@ class ElevatorController:
             (not self.moving)
             and self.door_status == DoorStatus.CLOSED
             and self.door_close_counter >= self.DOOR_CLOSE_BUFFER_TICKS
-            and self.ele_buffer_counter <= 0
+            and self.ele_buffer_counter >= self.ELE_BUFFER_TICKS
         )
 
     def _start_move_to_next_floor_if_needed(self) -> None:
@@ -376,7 +376,7 @@ class ElevatorController:
         # Start moving
         self.moving = True
         self.movement_start_tick = self.tick  # Track when movement starts for buffer calculation
-        self.ele_buffer_counter = self.ELE_BUFFER_TICKS
+        self.ele_buffer_counter = 0
 
         self.logger.log(
             self.tick,
@@ -394,35 +394,20 @@ class ElevatorController:
         if self.door_status == DoorStatus.OPENED:
             # "open_counter = 0" -> extend open time
             self.door_open_counter = 0
-            self.logger.log(
-                self.tick,
-                "DOOR_OPEN_BUTTON: EXTEND OPEN TIME",
-                floor=self.current_floor
-            )
             return
 
         if self.door_status == DoorStatus.OPENING:
-            # "door opens more quickly" -> we can reduce open_counter
-            self.door_open_counter = max(0, self.door_open_counter - 5)
-            self.logger.log(
-                self.tick,
-                "DOOR_OPEN_BUTTON: SPEED UP",
-                floor=self.current_floor
-            )
+            # -> do nothing
             return
 
         if self.door_status == DoorStatus.CLOSED:
             # Prevent opening while elevator is moving / in movement buffer
             if self.moving:
                 return
-            # If we're still inside close buffer, ignore (like your "no effect" note)
-            if self.door_close_counter < self.DOOR_CLOSE_BUFFER_TICKS:
+            # If we exceed close buffer, ignore
+            if self.door_close_counter >= self.DOOR_CLOSE_BUFFER_TICKS:
                 return
-            self.logger.log(
-                self.tick,
-                "DOOR_OPEN_BUTTON: OPEN DOOR",
-                floor=self.current_floor
-            )
+            # Open door
             self.door_status = DoorStatus.OPENING
             self.door_open_counter = 0
             self.sim.open_elevator_door()
@@ -432,45 +417,24 @@ class ElevatorController:
             # Interrupt closing -> open again
             if self.moving:
                 return
-            self.logger.log(
-                self.tick,
-                "DOOR_OPEN_BUTTON: INTERRUPT CLOSING",
-                floor=self.current_floor
-            )
             self.door_status = DoorStatus.OPENING
             self.door_open_counter = 0
             self.sim.open_elevator_door()
+            return
 
     def _handle_close_button(self) -> None:
         if self.door_status in (DoorStatus.OPENED, DoorStatus.OPENING):
-            self.logger.log(
-                self.tick,
-                "DOOR_CLOSE_BUTTON: INTERRUPT OPENING",
-                floor=self.current_floor
-            )
             self.door_status = DoorStatus.CLOSING
             self.door_close_counter = 0
             self.sim.close_elevator_door()
             return
 
         if self.door_status == DoorStatus.CLOSED:
-            # close_counter = DOOR_CLOSE_BUFFER (already closed)
-            self.door_close_counter = self.DOOR_CLOSE_BUFFER_TICKS
-            self.logger.log(
-                self.tick,
-                "DOOR_CLOSE_BUTTON: SET BUFFER",
-                floor=self.current_floor
-            )
+            # do nothing
             return
 
         if self.door_status == DoorStatus.CLOSING:
-            # "door closes more quickly" -> speed it up
-            self.door_close_counter += 5
-            self.logger.log(
-                self.tick,
-                "DOOR_CLOSE_BUTTON: SPEED UP",
-                floor=self.current_floor
-            )
+            # do nothing
             return
 
     def _advance_door_state_machine(self) -> None:
@@ -501,13 +465,6 @@ class ElevatorController:
             self.door_open_counter += 1
             if self.door_open_counter >= self.DOOR_OPEN_BUFFER_TICKS:
                 self.door_status = DoorStatus.CLOSING
-
-                self.logger.log(
-                    self.tick,
-                    "DOOR_CLOSE_START",
-                    floor=self.current_floor
-                )
-
                 self.door_close_counter = 0
                 self.sim.close_elevator_door()
 
@@ -530,10 +487,10 @@ class ElevatorController:
 
     def _advance_elevator_buffer(self) -> None:
         """Advance elevator buffer and update current_floor incrementally as elevator passes floors."""
-        if self.ele_buffer_counter > 0:
-            self.ele_buffer_counter -= 1
+        if self.ele_buffer_counter < self.ELE_BUFFER_TICKS:
+            self.ele_buffer_counter += 1
         
-        # ELE_BUFFER logic from notes: update current_floor incrementally as elevator passes floors
+        # ELE_BUFFER logic: update current_floor incrementally as elevator passes floors
         # "within buffer: current_floor, exceed buffer: current_floor++"
         # current_floor should be updated to current_passing_floor each time it passes a floor
         if self.moving and self.movement_start_tick is not None and self.next_floor is not None:
@@ -556,9 +513,19 @@ class ElevatorController:
                 if self.elevator_direction == Direction.UP:
                     if current_passing_floor > self.current_floor:
                         self.current_floor = current_passing_floor
+                        self.logger.log(
+                            self.tick,
+                            "ELEVATOR_BUFFER_UPDATE",
+                            floor=self.current_floor
+                        )
                 else:  # DOWN
                     if current_passing_floor < self.current_floor:
                         self.current_floor = current_passing_floor
+                        self.logger.log(
+                            self.tick,
+                            "ELEVATOR_BUFFER_UPDATE",
+                            floor=self.current_floor
+                        )
     
     def handle_button_press_async(self, floor_num: int) -> None:
         """
