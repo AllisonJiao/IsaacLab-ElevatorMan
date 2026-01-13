@@ -145,6 +145,44 @@ class ElevatorController:
         else:
             self._push_floor_request_impl(floor_num)
     
+    def _add_floor_to_queue(self, floor_num: int) -> None:
+        """Helper method to add a floor to the appropriate priority queue."""
+        if floor_num > self.current_floor:
+            if floor_num not in self.pending_above:
+                heapq.heappush(self.min_floor_heap, floor_num)
+                self.pending_above.add(floor_num)
+                self.logger.log(
+                    self.tick,
+                    "FLOOR_ADDED_TO_QUEUE",
+                    floor=floor_num,
+                    queue="min_floor_heap",
+                    queue_contents=list(self.min_floor_heap),
+                    current_floor=self.current_floor
+                )
+        else:
+            if floor_num not in self.pending_below:
+                heapq.heappush(self.max_floor_heap, -floor_num)
+                self.pending_below.add(floor_num)
+                self.logger.log(
+                    self.tick,
+                    "FLOOR_ADDED_TO_QUEUE",
+                    floor=floor_num,
+                    queue="max_floor_heap",
+                    queue_contents=[-f for f in self.max_floor_heap],
+                    current_floor=self.current_floor
+                )
+    
+    def _requeue_floor(self, floor_num: int) -> None:
+        """Helper method to add a floor back to the appropriate priority queue."""
+        if floor_num > self.current_floor:
+            if floor_num not in self.pending_above:
+                heapq.heappush(self.min_floor_heap, floor_num)
+                self.pending_above.add(floor_num)
+        else:
+            if floor_num not in self.pending_below:
+                heapq.heappush(self.max_floor_heap, -floor_num)
+                self.pending_below.add(floor_num)
+
     def _push_floor_request_impl(self, floor_num: int) -> None:
         """Internal implementation of push_floor_request (without lock)."""
         if floor_num == self.current_floor:
@@ -252,16 +290,7 @@ class ElevatorController:
                 # Update next_floor to stop immediately at this floor
                 # If there was a previous next_floor, we need to put it back in the queue
                 if self.next_floor is not None and self.next_floor != floor_num:
-                    # Put the previous target back in the queue
-                    prev_floor = self.next_floor
-                    if prev_floor > self.current_floor:
-                        if prev_floor not in self.pending_above:
-                            heapq.heappush(self.min_floor_heap, prev_floor)
-                            self.pending_above.add(prev_floor)
-                    else:
-                        if prev_floor not in self.pending_below:
-                            heapq.heappush(self.max_floor_heap, -prev_floor)
-                            self.pending_below.add(prev_floor)
+                    self._requeue_floor(self.next_floor)
                 
                 # Set next_floor to stop immediately at this floor
                 self.next_floor = floor_num
@@ -272,81 +301,62 @@ class ElevatorController:
 
         # Normal queue logic: add to appropriate priority queue
         # Use current_floor for comparison (which gets updated incrementally via ELE_BUFFER)
-        if floor_num > self.current_floor:
-            if floor_num not in self.pending_above:
-                heapq.heappush(self.min_floor_heap, floor_num)
-                self.pending_above.add(floor_num)
-                self.logger.log(
-                    self.tick,
-                    "FLOOR_ADDED_TO_QUEUE",
-                    floor=floor_num,
-                    queue="min_floor_heap",
-                    queue_contents=list(self.min_floor_heap),
-                    current_floor=self.current_floor
-                )
+        self._add_floor_to_queue(floor_num)
+
+    def _pop_from_queue(self, use_min_heap: bool) -> Optional[int]:
+        """Helper method to pop from a queue with logging."""
+        if use_min_heap:
+            if not self.min_floor_heap:
+                return None
+            queue_name = "min_floor_heap"
+            queue_contents_before = list(self.min_floor_heap)
+            f = heapq.heappop(self.min_floor_heap)
+            self.pending_above.discard(f)
+            queue_contents_after = list(self.min_floor_heap)
         else:
-            if floor_num not in self.pending_below:
-                heapq.heappush(self.max_floor_heap, -floor_num)
-                self.pending_below.add(floor_num)
-                self.logger.log(
-                    self.tick,
-                    "FLOOR_ADDED_TO_QUEUE",
-                    floor=floor_num,
-                    queue="max_floor_heap",
-                    queue_contents=[-f for f in self.max_floor_heap],
-                    current_floor=self.current_floor
-                )
+            if not self.max_floor_heap:
+                return None
+            queue_name = "max_floor_heap"
+            queue_contents_before = [-f for f in self.max_floor_heap]
+            f = -heapq.heappop(self.max_floor_heap)
+            self.pending_below.discard(f)
+            queue_contents_after = [-f for f in self.max_floor_heap]
+        
+        self.logger.log(
+            self.tick,
+            "POPPING_FROM_QUEUE",
+            queue=queue_name,
+            queue_contents_before=queue_contents_before,
+            current_floor=self.current_floor
+        )
+        self.logger.log(
+            self.tick,
+            "POPPED_FROM_QUEUE",
+            floor=f,
+            queue_contents_after=queue_contents_after
+        )
+        return f
 
     def _pop_next_floor_for_direction(self) -> Optional[int]:
         """Implements: next_floor = (dir==UP ? pop(min) : pop(max)) with direction switching."""
         # Try current direction first
         if self.elevator_direction == Direction.UP:
-            if self.min_floor_heap:
-                self.logger.log(
-                    self.tick,
-                    "POPPING_FROM_QUEUE",
-                    queue="min_floor_heap",
-                    queue_contents_before=list(self.min_floor_heap),
-                    current_floor=self.current_floor
-                )
-                f = heapq.heappop(self.min_floor_heap)
-                self.pending_above.discard(f)
-                self.logger.log(
-                    self.tick,
-                    "POPPED_FROM_QUEUE",
-                    floor=f,
-                    queue_contents_after=list(self.min_floor_heap)
-                )
+            f = self._pop_from_queue(use_min_heap=True)
+            if f is not None:
                 return f
             # Switch direction if current direction is empty
             if self.max_floor_heap:
                 self.elevator_direction = Direction.DOWN
-                # Recursively call to get floor from new direction
                 return self._pop_next_floor_for_direction()
             return None
 
         elif self.elevator_direction == Direction.DOWN:
-            if self.max_floor_heap:
-                self.logger.log(
-                    self.tick,
-                    "POPPING_FROM_QUEUE",
-                    queue="max_floor_heap",
-                    queue_contents_before=[-f for f in self.max_floor_heap],
-                    current_floor=self.current_floor
-                )
-                f = -heapq.heappop(self.max_floor_heap)
-                self.pending_below.discard(f)
-                self.logger.log(
-                    self.tick,
-                    "POPPED_FROM_QUEUE",
-                    floor=f,
-                    queue_contents_after=[-f for f in self.max_floor_heap]
-                )
+            f = self._pop_from_queue(use_min_heap=False)
+            if f is not None:
                 return f
             # Switch direction if current direction is empty
             if self.min_floor_heap:
                 self.elevator_direction = Direction.UP
-                # Recursively call to get floor from new direction
                 return self._pop_next_floor_for_direction()
             return None
 
@@ -510,22 +520,19 @@ class ElevatorController:
             # This allows the elevator to "forget" floors it has passed
             if ticks_since_floor_pass > self.ELE_TICKS:
                 # Exceeded buffer: current_floor = current_passing_floor
+                should_update = False
                 if self.elevator_direction == Direction.UP:
-                    if current_passing_floor > self.current_floor:
-                        self.current_floor = current_passing_floor
-                        self.logger.log(
-                            self.tick,
-                            "ELEVATOR_UPDATE",
-                            floor=self.current_floor
-                        )
+                    should_update = current_passing_floor > self.current_floor
                 else:  # DOWN
-                    if current_passing_floor < self.current_floor:
-                        self.current_floor = current_passing_floor
-                        self.logger.log(
-                            self.tick,
-                            "ELEVATOR_UPDATE",
-                            floor=self.current_floor
-                        )
+                    should_update = current_passing_floor < self.current_floor
+                
+                if should_update:
+                    self.current_floor = current_passing_floor
+                    self.logger.log(
+                        self.tick,
+                        "ELEVATOR_UPDATE",
+                        floor=self.current_floor
+                    )
     
     def handle_button_press_async(self, floor_num: int) -> None:
         """
