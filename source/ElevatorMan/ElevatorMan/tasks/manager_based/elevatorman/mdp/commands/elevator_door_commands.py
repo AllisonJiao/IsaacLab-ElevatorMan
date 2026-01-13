@@ -70,7 +70,8 @@ class ElevatorDoorCommand(CommandTerm):
         
         # -- metrics
         self.metrics["door_position_error"] = torch.zeros(self.num_envs, device=self.device)
-        self.metrics["door_is_open"] = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
+        # Store as float (0.0 = closed, 1.0 = open) to allow torch.mean() in reset()
+        self.metrics["door_is_open"] = torch.zeros(self.num_envs, device=self.device, dtype=torch.float32)
 
     def __str__(self) -> str:
         msg = "ElevatorDoorCommand:\n"
@@ -106,9 +107,10 @@ class ElevatorDoorCommand(CommandTerm):
         
         # Check if door is considered open (within threshold of open position)
         open_threshold = 0.1  # Consider door open if within 0.1 of target
+        # Store as float (0.0 or 1.0) instead of boolean to allow torch.mean() in reset()
         self.metrics["door_is_open"] = (
             torch.abs(current_door_pos - self.cfg.door_open_position) < open_threshold
-        )
+        ).float()
 
     def _resample_command(self, env_ids: Sequence[int]):
         """Resample door commands for specified environments.

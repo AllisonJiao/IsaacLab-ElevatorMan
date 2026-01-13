@@ -6,6 +6,7 @@
 """Configuration for elevator door commands."""
 
 from dataclasses import MISSING
+from typing import Union
 
 from isaaclab.managers import CommandTermCfg
 from isaaclab.utils import configclass
@@ -24,7 +25,7 @@ class ElevatorDoorCommandCfg(CommandTermCfg):
     class_type: type = door_cmd.ElevatorDoorCommand
     """The class type for the command term."""
 
-    elevator_name: str = MISSING
+    elevator_name: Union[str, type(MISSING)] = MISSING  # type: ignore
     """Name of the elevator articulation in the scene."""
 
     door_joint_name: str = "door2_joint"
