@@ -112,10 +112,10 @@ class ElevatorController:
     pending_above: Set[int] = field(default_factory=set)
     pending_below: Set[int] = field(default_factory=set)
 
-    # Buffers (tunable)
-    DOOR_OPEN_BUFFER_TICKS: int = 60    # "wait" ticks door stays opened before closing
-    DOOR_CLOSE_BUFFER_TICKS: int = 30   # "wait" ticks door stays closed after closing
-    ELE_BUFFER_TICKS: int = 10          # buffer to prevent instant re-press issues while moving
+    # Macros
+    DOOR_OPEN_TICKS: int = 60    # "wait" ticks door stays opened before closing
+    DOOR_CLOSE_TICKS: int = 30   # "wait" ticks door stays closed after closing
+    ELE_TICKS: int = 10          # buffer to prevent instant re-press issues while moving
     
     # Movement parameters
     TICKS_PER_FLOOR: int = 100          # Number of ticks to move one floor
@@ -123,7 +123,7 @@ class ElevatorController:
     # Internal counters/state
     door_open_counter: int = 0
     door_close_counter: int = 0
-    ele_buffer_counter: int = 0
+    ele_counter: int = 0
     moving: bool = False
     movement_start_tick: Optional[int] = None  # Track when movement started for buffer calculation
     
@@ -158,7 +158,7 @@ class ElevatorController:
                 self.sim.open_elevator_door()
             elif self.door_status == DoorStatus.CLOSED and not self.moving:
                 # Door is closed and elevator is stopped - check if within CLOSE_BUFFER
-                if self.door_close_counter <= self.DOOR_CLOSE_BUFFER_TICKS:
+                if self.door_close_counter <= self.DOOR_CLOSE_TICKS:
                     # Within close buffer - open door
                     self.door_status = DoorStatus.OPENING
                     self.door_open_counter = 0
@@ -181,7 +181,7 @@ class ElevatorController:
             
             # Calculate ticks since passing the current floor (for buffer window)
             ticks_since_floor_pass = ticks_since_movement_start % self.TICKS_PER_FLOOR
-            is_within_buffer = ticks_since_floor_pass <= self.ELE_BUFFER_TICKS
+            is_within_ticks = ticks_since_floor_pass <= self.ELE_TICKS
             
             # Check if requested floor is between current_floor and next_floor in current direction
             is_between_current_and_next = False
@@ -204,7 +204,7 @@ class ElevatorController:
             # Debug logging for buffer checks
             self.logger.log(
                 self.tick,
-                "ELE_BUFFER_CHECK",
+                "ELE_CHECK",
                 requested_floor=floor_num,
                 current_floor=self.current_floor,
                 current_passing_floor=current_passing_floor,
@@ -212,15 +212,15 @@ class ElevatorController:
                 direction=self.elevator_direction.name,
                 ticks_since_start=ticks_since_movement_start,
                 ticks_since_floor_pass=ticks_since_floor_pass,
-                is_within_buffer=is_within_buffer,
+                is_within_ticks=is_within_ticks,
                 is_between_current_and_next=is_between_current_and_next,
                 is_adjacent_to_passing_floor=is_adjacent_to_passing_floor,
-                will_stop=(is_within_buffer and is_adjacent_to_passing_floor)
+                will_stop=(is_within_ticks and is_adjacent_to_passing_floor)
             )
             
             # If within buffer and adjacent to passing floor, stop immediately
             # OR if floor is between current and next, update next_floor to prioritize it
-            if is_within_buffer and is_adjacent_to_passing_floor:
+            if is_within_ticks and is_adjacent_to_passing_floor:
                 # Immediate stop at adjacent floor
                 should_stop = True
             elif is_between_current_and_next and not floor_num == current_passing_floor:
@@ -247,7 +247,7 @@ class ElevatorController:
                     previous_next_floor=self.next_floor,
                     ticks_since_start=ticks_since_movement_start,
                     ticks_since_floor_pass=ticks_since_floor_pass,
-                    buffer_ticks=self.ELE_BUFFER_TICKS
+                    buffer_ticks=self.ELE_TICKS
                 )
                 # Update next_floor to stop immediately at this floor
                 # If there was a previous next_floor, we need to put it back in the queue
@@ -356,8 +356,8 @@ class ElevatorController:
         return (
             (not self.moving)
             and self.door_status == DoorStatus.CLOSED
-            and self.door_close_counter >= self.DOOR_CLOSE_BUFFER_TICKS
-            and self.ele_buffer_counter >= self.ELE_BUFFER_TICKS
+            and self.door_close_counter >= self.DOOR_CLOSE_TICKS
+            and self.ele_counter >= self.ELE_TICKS
         )
 
     def _start_move_to_next_floor_if_needed(self) -> None:
@@ -376,7 +376,7 @@ class ElevatorController:
         # Start moving
         self.moving = True
         self.movement_start_tick = self.tick  # Track when movement starts for buffer calculation
-        self.ele_buffer_counter = 0
+        self.ele_counter = 0
 
         self.logger.log(
             self.tick,
@@ -405,7 +405,7 @@ class ElevatorController:
             if self.moving:
                 return
             # If we exceed close buffer, ignore
-            if self.door_close_counter >= self.DOOR_CLOSE_BUFFER_TICKS:
+            if self.door_close_counter >= self.DOOR_CLOSE_TICKS:
                 return
             # Open door
             self.door_status = DoorStatus.OPENING
@@ -463,7 +463,7 @@ class ElevatorController:
 
         elif self.door_status == DoorStatus.OPENED:
             self.door_open_counter += 1
-            if self.door_open_counter >= self.DOOR_OPEN_BUFFER_TICKS:
+            if self.door_open_counter >= self.DOOR_OPEN_TICKS:
                 self.door_status = DoorStatus.CLOSING
                 self.door_close_counter = 0
                 self.sim.close_elevator_door()
@@ -485,13 +485,13 @@ class ElevatorController:
             # accumulate close buffer (increments each tick while closed)
             self.door_close_counter += 1
 
-    def _advance_elevator_buffer(self) -> None:
+    def _advance_elevator_ticks(self) -> None:
         """Advance elevator buffer and update current_floor incrementally as elevator passes floors."""
-        if self.ele_buffer_counter < self.ELE_BUFFER_TICKS:
-            self.ele_buffer_counter += 1
+        if self.ele_counter < self.ELE_TICKS:
+            self.ele_counter += 1
         
-        # ELE_BUFFER logic: update current_floor incrementally as elevator passes floors
-        # "within buffer: current_floor, exceed buffer: current_floor++"
+        # ELE_TICKS logic: update current_floor incrementally as elevator passes floors
+        # "within ticks: current_floor, exceed buffer: current_floor++"
         # current_floor should be updated to current_passing_floor each time it passes a floor
         if self.moving and self.movement_start_tick is not None and self.next_floor is not None:
             ticks_since_movement_start = self.tick - self.movement_start_tick
@@ -508,14 +508,14 @@ class ElevatorController:
             
             # If we've exceeded the buffer window for a floor, update current_floor to current_passing_floor
             # This allows the elevator to "forget" floors it has passed
-            if ticks_since_floor_pass > self.ELE_BUFFER_TICKS:
+            if ticks_since_floor_pass > self.ELE_TICKS:
                 # Exceeded buffer: current_floor = current_passing_floor
                 if self.elevator_direction == Direction.UP:
                     if current_passing_floor > self.current_floor:
                         self.current_floor = current_passing_floor
                         self.logger.log(
                             self.tick,
-                            "ELEVATOR_BUFFER_UPDATE",
+                            "ELEVATOR_UPDATE",
                             floor=self.current_floor
                         )
                 else:  # DOWN
@@ -523,7 +523,7 @@ class ElevatorController:
                         self.current_floor = current_passing_floor
                         self.logger.log(
                             self.tick,
-                            "ELEVATOR_BUFFER_UPDATE",
+                            "ELEVATOR_UPDATE",
                             floor=self.current_floor
                         )
     
@@ -604,7 +604,7 @@ class ElevatorController:
 
         # 4) Advance timers/state machines
         self._advance_door_state_machine()
-        self._advance_elevator_buffer()
+        self._advance_elevator_ticks()
 
         # 5) If idle + door closed, decide next move
         self._start_move_to_next_floor_if_needed()
