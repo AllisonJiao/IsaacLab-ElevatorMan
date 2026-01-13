@@ -308,6 +308,16 @@ def run_simulator(
         
         # Update door position (same pattern as buttons)
         if len(elevator_door_ids) > 0:
+            door_idx = elevator_door_ids[0].item()
+            # Debug: Print door phase and positions
+            if count % 25 == 0:  # Print every 25 frames
+                current_pos = elevator.data.joint_pos[0, door_idx].item()
+                target_before_delta = elevator.data.default_joint_pos[0, door_idx].item()
+                target_after_delta = target_before_delta + delta
+                print(f"[DOOR DEBUG] Count={count}, Phase={phase}, Delta={delta:.3f}, "
+                      f"Default={target_before_delta:.3f}, Target={target_after_delta:.3f}, "
+                      f"Current={current_pos:.3f}, Limits=[{elevator.data.soft_joint_pos_limits[0, door_idx, 0].item():.3f}, "
+                      f"{elevator.data.soft_joint_pos_limits[0, door_idx, 1].item():.3f}]")
             joint_pos_target[:, elevator_door_ids] += delta
         
         # Update button positions - press down gradually over the period
