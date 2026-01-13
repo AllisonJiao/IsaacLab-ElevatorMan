@@ -209,7 +209,7 @@ class ElevatorController:
             if is_within_buffer and is_adjacent_to_passing_floor:
                 # Immediate stop at adjacent floor
                 should_stop = True
-            elif is_between_current_and_next:
+            elif is_between_current_and_next and not floor_num == current_passing_floor:
                 # Floor is between current and next - update next_floor to service it first
                 # This ensures floors in the queue are serviced in order
                 should_stop = True
@@ -257,6 +257,7 @@ class ElevatorController:
                 return  # Don't add to queue, we're stopping here immediately
 
         # Normal queue logic: add to appropriate priority queue
+        # Use current_floor for comparison (which gets updated incrementally via ELE_BUFFER)
         if floor_num > self.current_floor:
             if floor_num not in self.pending_above:
                 heapq.heappush(self.min_floor_heap, floor_num)
@@ -470,8 +471,36 @@ class ElevatorController:
             self.door_close_counter += 1
 
     def _advance_elevator_buffer(self) -> None:
+        """Advance elevator buffer and update current_floor incrementally as elevator passes floors."""
         if self.ele_buffer_counter > 0:
             self.ele_buffer_counter -= 1
+        
+        # ELE_BUFFER logic from notes: update current_floor incrementally as elevator passes floors
+        # "within buffer: current_floor, exceed buffer: current_floor++"
+        # current_floor should be updated to current_passing_floor each time it passes a floor
+        if self.moving and self.movement_start_tick is not None and self.next_floor is not None:
+            ticks_since_movement_start = self.tick - self.movement_start_tick
+            
+            # Calculate which floor the elevator is currently at/passing
+            floors_traveled = ticks_since_movement_start // self.TICKS_PER_FLOOR
+            if self.elevator_direction == Direction.UP:
+                current_passing_floor = self.current_floor + floors_traveled
+            else:  # DOWN
+                current_passing_floor = self.current_floor - floors_traveled
+            
+            # Calculate ticks since passing the current passing floor
+            ticks_since_floor_pass = ticks_since_movement_start % self.TICKS_PER_FLOOR
+            
+            # If we've exceeded the buffer window for a floor, update current_floor to current_passing_floor
+            # This allows the elevator to "forget" floors it has passed
+            if ticks_since_floor_pass > self.ELE_BUFFER_TICKS:
+                # Exceeded buffer: current_floor = current_passing_floor
+                if self.elevator_direction == Direction.UP:
+                    if current_passing_floor > self.current_floor:
+                        self.current_floor = current_passing_floor
+                else:  # DOWN
+                    if current_passing_floor < self.current_floor:
+                        self.current_floor = current_passing_floor
     
     def handle_button_press_async(self, floor_num: int) -> None:
         """
@@ -571,7 +600,7 @@ if __name__ == "__main__":
         1: ElevatorInputs(floor_button_pressed=True, floor_button_floor_num=5),
         150: ElevatorInputs(floor_button_pressed=True, floor_button_floor_num=1),
         31: ElevatorInputs(floor_button_pressed=True, floor_button_floor_num=2),
-        900: ElevatorInputs(floor_button_pressed=True, floor_button_floor_num=3),
+        550: ElevatorInputs(floor_button_pressed=True, floor_button_floor_num=3),
         # Add more test inputs as needed:
         # 100: ElevatorInputs(open_button_pressed=True),
         # 200: ElevatorInputs(close_button_pressed=True),
