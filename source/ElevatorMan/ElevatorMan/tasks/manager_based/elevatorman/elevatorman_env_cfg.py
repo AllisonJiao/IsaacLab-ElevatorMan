@@ -27,6 +27,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab_tasks.manager_based.manipulation.stack import mdp
 
 from .elevatorman_scene_cfg import ElevatormanSceneCfg
+from . import mdp as elevatorman_mdp
 
 ##
 # Pre-defined configs
@@ -34,6 +35,26 @@ from .elevatorman_scene_cfg import ElevatormanSceneCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 from isaaclab_assets.robots.agibot import AGIBOT_A2D_CFG  # isort: skip
 from isaaclab.controllers.config.rmp_flow import AGIBOT_RIGHT_ARM_RMPFLOW_CFG  # isort: skip
+
+##
+# Command settings
+##
+
+
+@configclass
+class CommandsCfg:
+    """Command terms for the MDP."""
+
+    elevator_door = elevatorman_mdp.ElevatorDoorCommandCfg(
+        elevator_name="elevator",
+        door_joint_name="door2_joint",
+        resampling_time_range=(5.0, 10.0),  # Resample door command every 5-10 seconds
+        debug_vis=False,
+        ranges=elevatorman_mdp.ElevatorDoorCommandCfg.Ranges(),
+        door_open_position=1.0,
+        door_close_position=0.0,
+    )
+
 
 ##
 # Event settings
@@ -103,8 +124,9 @@ class ElevatormanEnvCfg(ManagerBasedRLEnvCfg):
     # MDP settings
     terminations: TerminationsCfg = TerminationsCfg()
 
+    # MDP managers
+    commands: CommandsCfg = CommandsCfg()
     # Unused managers
-    commands = None
     rewards = None
     events = None
     curriculum = None
