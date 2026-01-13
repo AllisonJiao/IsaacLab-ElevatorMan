@@ -51,7 +51,7 @@ class CommandsCfg:
         resampling_time_range=(5.0, 10.0),  # Resample door command every 5-10 seconds
         debug_vis=False,
         ranges=elevatorman_mdp.ElevatorDoorCommandCfg.Ranges(),
-        door_open_position=-0.5,  # 50 cm along chosen axis (matches animate_elevator_scene.py)
+        door_open_position=-0.5,  # 50 cm along chosen axis
         door_close_position=0.0,
     )
 
@@ -103,6 +103,13 @@ class ActionsCfg:
     # will be set by agent env cfg
     arm_action: mdp.JointPositionActionCfg = MISSING
     gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
+    
+    # Door command action - applies door commands from command manager
+    door_action: elevatorman_mdp.DoorCommandActionCfg = elevatorman_mdp.DoorCommandActionCfg(
+        asset_name="elevator",  # Use asset_name (required by base class)
+        door_joint_name="door2_joint",
+        command_name="elevator_door",
+    )
 
 
 @configclass
