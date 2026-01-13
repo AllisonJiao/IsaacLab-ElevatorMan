@@ -145,43 +145,43 @@ class ElevatorController:
         else:
             self._push_floor_request_impl(floor_num)
     
-    def _add_floor_to_queue(self, floor_num: int) -> None:
-        """Helper method to add a floor to the appropriate priority queue."""
+    def _add_floor_to_queue(self, floor_num: int, log: bool = True) -> None:
+        """Helper method to add a floor to the appropriate priority queue.
+        
+        Args:
+            floor_num: The floor number to add
+            log: Whether to log the addition (default True)
+        """
         if floor_num > self.current_floor:
             if floor_num not in self.pending_above:
                 heapq.heappush(self.min_floor_heap, floor_num)
                 self.pending_above.add(floor_num)
-                self.logger.log(
-                    self.tick,
-                    "FLOOR_ADDED_TO_QUEUE",
-                    floor=floor_num,
-                    queue="min_floor_heap",
-                    queue_contents=list(self.min_floor_heap),
-                    current_floor=self.current_floor
-                )
+                if log:
+                    self.logger.log(
+                        self.tick,
+                        "FLOOR_ADDED_TO_QUEUE",
+                        floor=floor_num,
+                        queue="min_floor_heap",
+                        queue_contents=list(self.min_floor_heap),
+                        current_floor=self.current_floor
+                    )
         else:
             if floor_num not in self.pending_below:
                 heapq.heappush(self.max_floor_heap, -floor_num)
                 self.pending_below.add(floor_num)
-                self.logger.log(
-                    self.tick,
-                    "FLOOR_ADDED_TO_QUEUE",
-                    floor=floor_num,
-                    queue="max_floor_heap",
-                    queue_contents=[-f for f in self.max_floor_heap],
-                    current_floor=self.current_floor
-                )
+                if log:
+                    self.logger.log(
+                        self.tick,
+                        "FLOOR_ADDED_TO_QUEUE",
+                        floor=floor_num,
+                        queue="max_floor_heap",
+                        queue_contents=[-f for f in self.max_floor_heap],
+                        current_floor=self.current_floor
+                    )
     
     def _requeue_floor(self, floor_num: int) -> None:
-        """Helper method to add a floor back to the appropriate priority queue."""
-        if floor_num > self.current_floor:
-            if floor_num not in self.pending_above:
-                heapq.heappush(self.min_floor_heap, floor_num)
-                self.pending_above.add(floor_num)
-        else:
-            if floor_num not in self.pending_below:
-                heapq.heappush(self.max_floor_heap, -floor_num)
-                self.pending_below.add(floor_num)
+        """Helper method to add a floor back to the appropriate priority queue (without logging)."""
+        self._add_floor_to_queue(floor_num, log=False)
 
     def _push_floor_request_impl(self, floor_num: int) -> None:
         """Internal implementation of push_floor_request (without lock)."""
