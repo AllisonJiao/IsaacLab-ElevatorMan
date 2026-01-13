@@ -306,8 +306,9 @@ def run_simulator(
         # Update elevator joint positions (doors and buttons) using joint-based animation
         joint_pos_target = elevator.data.default_joint_pos.clone()
         
-        # Update door position
-        joint_pos_target[:, elevator_door_ids] += delta
+        # Update door position (same pattern as buttons)
+        if len(elevator_door_ids) > 0:
+            joint_pos_target[:, elevator_door_ids] += delta
         
         # Update button positions - press down gradually over the period
         # Button press animation: starts at 0, reaches max press at phase 0.5, stays pressed
@@ -429,6 +430,21 @@ def main():
     elevator_button_joint_names = ["button_0_0_joint", "button_0_1_joint", "button_1_0_joint", "button_1_1_joint", "button_2_0_joint", "button_2_1_joint", "button_3_0_joint", "button_3_1_joint"]
     elevator_button_ids, _ = elevator.find_joints(elevator_button_joint_names)
     elevator_button_ids = torch.as_tensor(elevator_button_ids, device=elevator.device, dtype=torch.long)
+    
+    # Debug: Compare door vs button setup (buttons work, so use as reference)
+    print(f"[DEBUG] Door joint IDs: {elevator_door_ids}, Shape: {elevator_door_ids.shape}")
+    print(f"[DEBUG] Button joint IDs: {elevator_button_ids}, Shape: {elevator_button_ids.shape}")
+    if len(elevator_door_ids) > 0:
+        door_idx = elevator_door_ids[0].item()
+        print(f"[DEBUG] Door joint found at index {door_idx}, name: {elevator.joint_names[door_idx]}")
+        print(f"[DEBUG] Door default pos: {elevator.data.default_joint_pos[0, door_idx].item():.3f}")
+        print(f"[DEBUG] Door limits: [{elevator.data.soft_joint_pos_limits[0, door_idx, 0].item():.3f}, {elevator.data.soft_joint_pos_limits[0, door_idx, 1].item():.3f}]")
+        if len(elevator_button_ids) > 0:
+            button_idx = elevator_button_ids[0].item()
+            print(f"[DEBUG] Button default pos (for comparison): {elevator.data.default_joint_pos[0, button_idx].item():.3f}")
+            print(f"[DEBUG] Button limits (for comparison): [{elevator.data.soft_joint_pos_limits[0, button_idx, 0].item():.3f}, {elevator.data.soft_joint_pos_limits[0, button_idx, 1].item():.3f}]")
+    else:
+        print(f"[ERROR] Door joint 'door2_joint' not found! Available joints: {elevator.joint_names}")
 
     # Setup robot's joint_lift_body prismatic joint animation (for testing/reference)
     lift_body_joint_names = ["joint_lift_body"]
