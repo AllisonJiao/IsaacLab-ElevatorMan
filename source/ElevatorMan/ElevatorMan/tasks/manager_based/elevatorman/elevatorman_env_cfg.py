@@ -51,7 +51,7 @@ class CommandsCfg:
         resampling_time_range=(5.0, 10.0),  # Resample door command every 5-10 seconds
         debug_vis=False,
         ranges=elevatorman_mdp.ElevatorDoorCommandCfg.Ranges(),
-        door_open_position=1.0,
+        door_open_position=-0.5,  # 50 cm along chosen axis (matches animate_elevator_scene.py)
         door_close_position=0.0,
     )
 

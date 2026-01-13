@@ -30,8 +30,8 @@ class ElevatorDoorCommandCfg(CommandTermCfg):
     door_joint_name: str = "door2_joint"
     """Name of the door joint to control. Defaults to 'door2_joint'."""
 
-    door_open_position: float = 1.0
-    """Target position for door open state. Defaults to 1.0."""
+    door_open_position: float = -0.5
+    """Target position for door open state. Defaults to -0.5 (50 cm along chosen axis)."""
 
     door_close_position: float = 0.0
     """Target position for door close state. Defaults to 0.0."""

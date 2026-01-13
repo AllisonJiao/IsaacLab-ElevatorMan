@@ -30,7 +30,7 @@ class ElevatorDoorCommand(CommandTerm):
     Outputs:
         The command buffer has shape (num_envs, 1): `(door_target_position)`.
         - 0.0 = closed
-        - 1.0 = open
+        - -0.5 = open (50 cm along chosen axis)
         - Values in between represent partial opening
     
     Metrics:
@@ -65,7 +65,7 @@ class ElevatorDoorCommand(CommandTerm):
             )
 
         # create buffers
-        # -- commands: door target position (0.0 = closed, 1.0 = open)
+        # -- commands: door target position (0.0 = closed, -0.5 = open)
         self.door_command = torch.zeros(self.num_envs, 1, device=self.device)
         
         # -- metrics
@@ -87,7 +87,7 @@ class ElevatorDoorCommand(CommandTerm):
     def command(self) -> torch.Tensor:
         """The desired door position command. Shape is (num_envs, 1).
         
-        Values range from 0.0 (closed) to 1.0 (open).
+        Values range from 0.0 (closed) to -0.5 (open, 50 cm along chosen axis).
         """
         return self.door_command
 
@@ -120,11 +120,11 @@ class ElevatorDoorCommand(CommandTerm):
         r = torch.empty(len(env_ids), device=self.device)
         open_prob = r.uniform_(*self.cfg.ranges.open_probability)
         
-        # Determine door state: 1.0 = open, 0.0 = closed
+        # Determine door state: -0.5 = open, 0.0 = closed
         # Use probability to decide: if random value < open_prob, door should be open
         door_state = (r.uniform_(0.0, 1.0) < open_prob).float()
         
-        # Map to door positions: 0.0 -> close, 1.0 -> open
+        # Map to door positions: 0.0 -> close, -0.5 -> open
         self.door_command[env_ids, 0] = (
             door_state * self.cfg.door_open_position + 
             (1.0 - door_state) * self.cfg.door_close_position
