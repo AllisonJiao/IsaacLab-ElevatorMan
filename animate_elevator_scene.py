@@ -403,6 +403,7 @@ def main():
     if not door1_prim.IsValid():
         raise RuntimeError(f"Door1 prim not found at: {DOOR1_PRIM_PATH}")
 
+    # Use XformCommonAPI like the working reference code
     door1_xform = UsdGeom.XformCommonAPI(door1_prim)
 
     # Cache initial transform (we'll only offset translation)
