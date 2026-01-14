@@ -40,9 +40,9 @@ from isaaclab.controllers.config.rmp_flow import AGIBOT_RIGHT_ARM_RMPFLOW_CFG  #
 # Command settings
 ##
 
-# Create Ranges config with always-open probability (outside class to avoid being treated as command term)
+# Create Ranges config with random open/close probability (outside class to avoid being treated as command term)
 _door_ranges = elevatorman_mdp.ElevatorDoorCommandCfg.Ranges()
-_door_ranges.open_probability = (1.0, 1.0)  # Always open (100% probability) - door will stay open
+_door_ranges.open_probability = (0.0, 1.0)  # Random: 0-100% probability - door can be either open or closed
 
 @configclass
 class CommandsCfg:
