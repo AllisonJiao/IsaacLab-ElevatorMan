@@ -285,8 +285,8 @@ def run_simulator(
     cached_symmetric_ref_all: torch.Tensor,
     elevator_button_ids: torch.Tensor,
     lift_body_joint_ids: torch.Tensor,
-    door1_xform: UsdGeom.XformCommonAPI,
-    door1_init_t: Gf.Vec3d,
+    door1_translate_attr,
+    door1_init_t: tuple[float, float, float],
     robot_animation_range: float,
     lift_body_range: float,
 ):
@@ -317,7 +317,7 @@ def run_simulator(
             elevator.reset()
             
             # Reset door1 position to closed (initial position)
-            door1_xform.SetTranslate(door1_init_t, Usd.TimeCode.Default())
+            door1_translate_attr.Set(door1_init_t)
             
             count = 0
         
@@ -337,8 +337,8 @@ def run_simulator(
             door_delta = open_position + t * (close_position - open_position)  # Goes from -0.5 to 0.0
 
         # Update door1 position using USD Xform (along negative X axis)
-        new_t = Gf.Vec3d(door1_init_t[0] + door_delta, door1_init_t[1], door1_init_t[2])
-        door1_xform.SetTranslate(new_t, Usd.TimeCode.Default())
+        new_t = (door1_init_t[0] + door_delta, door1_init_t[1], door1_init_t[2])
+        door1_translate_attr.Set(new_t)
 
         # Update elevator button positions - press down gradually over the period
         # Button press animation: starts at 0, reaches max press at phase 0.5, stays pressed
@@ -403,13 +403,34 @@ def main():
     if not door1_prim.IsValid():
         raise RuntimeError(f"Door1 prim not found at: {DOOR1_PRIM_PATH}")
 
-    # Use XformCommonAPI like the working reference code
-    door1_xform = UsdGeom.XformCommonAPI(door1_prim)
-
-    # Cache initial transform (we'll only offset translation)
-    tc = Usd.TimeCode.Default()
-    init_t, init_r, init_s, init_pivot, _ = door1_xform.GetXformVectors(tc)
-    init_t = Gf.Vec3d(init_t)  # make sure it's a Vec3d
+    # Directly access translate attribute (avoid XformCommonAPI incompatibility)
+    translate_attr = door1_prim.GetAttribute("xformOp:translate")
+    
+    # If translate attribute doesn't exist, try to get/create it via Xformable
+    if not translate_attr or not translate_attr.IsValid():
+        # Check for different possible translate op names
+        for op_name in ["xformOp:translate", "xformOp:translation", "xformOp:translateX"]:
+            attr = door1_prim.GetAttribute(op_name)
+            if attr and attr.IsValid():
+                translate_attr = attr
+                break
+        
+        # If still not found, create one using Xformable
+        if not translate_attr or not translate_attr.IsValid():
+            door1_xformable = UsdGeom.Xformable(door1_prim)  # type: ignore
+            translate_op = door1_xformable.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble)  # type: ignore
+            translate_attr = translate_op.GetAttr()
+    
+    # Cache initial transform
+    init_t = translate_attr.Get()
+    if init_t is None:
+        init_t = (0.0, 0.0, 0.0)
+    else:
+        # Convert to tuple if it's a Vec3d
+        if hasattr(init_t, '__iter__') and len(init_t) == 3:
+            init_t = tuple(init_t)
+        else:
+            init_t = (0.0, 0.0, 0.0)
     print("[INFO] Door1 initial translate:", init_t)
 
     # Setup robot joint animation - organize into groups: shoulder (1-3), forearm (4-5), gripper (6-7)
@@ -495,7 +516,7 @@ def main():
         left_joint_groups, right_joint_groups,
         cached_symmetric_refs, cached_symmetric_ref_all,
         elevator_button_ids, lift_body_joint_ids,
-        door1_xform, init_t,
+        translate_attr, init_t,
         robot_animation_range, lift_body_range
     )
 
