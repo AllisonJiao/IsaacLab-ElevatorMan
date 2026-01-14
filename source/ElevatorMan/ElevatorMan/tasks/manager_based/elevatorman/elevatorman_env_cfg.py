@@ -46,12 +46,11 @@ class CommandsCfg:
     """Command terms for the MDP."""
 
     elevator_door = elevatorman_mdp.ElevatorDoorCommandCfg(
-        elevator_name="elevator",
-        door_joint_name="door2_joint",
+        elevator_name="elevator",  # Required but not used for door mesh control
         resampling_time_range=(5.0, 10.0),  # Resample door command every 5-10 seconds
         debug_vis=False,
         ranges=elevatorman_mdp.ElevatorDoorCommandCfg.Ranges(),
-        door_open_position=-0.5,  # 50 cm along chosen axis
+        door_open_position=-0.5,  # 50 cm along chosen axis (translation delta)
         door_close_position=0.0,
     )
 

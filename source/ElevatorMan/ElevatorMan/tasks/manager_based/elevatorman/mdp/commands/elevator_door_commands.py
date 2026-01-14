@@ -11,9 +11,7 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm
-from isaaclab.utils.math import compute_pose_error
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -51,24 +49,16 @@ class ElevatorDoorCommand(CommandTerm):
         # initialize the base class
         super().__init__(cfg, env)
 
-        # extract the elevator articulation
-        self.elevator: Articulation = env.scene[cfg.elevator_name]
+        # Note: Door is now a standalone USD mesh, not a joint in the elevator articulation
+        # We still need elevator_name for base class, but don't use it for door control
         
-        # Find door joint index
-        self._door_joint_idx = None
-        try:
-            self._door_joint_idx = self.elevator.joint_names.index(cfg.door_joint_name)
-        except ValueError:
-            raise ValueError(
-                f"Door joint '{cfg.door_joint_name}' not found in elevator articulation '{cfg.elevator_name}'. "
-                f"Available joints: {self.elevator.joint_names}"
-            )
-
         # create buffers
         # -- commands: door target position (0.0 = closed, -0.5 = open)
         self.door_command = torch.zeros(self.num_envs, 1, device=self.device)
         
         # -- metrics
+        # Note: Metrics are simplified since we don't track door joint position anymore
+        # The door position is controlled via USD mesh translation in the door actions
         self.metrics["door_position_error"] = torch.zeros(self.num_envs, device=self.device)
         # Store as float (0.0 = closed, 1.0 = open) to allow torch.mean() in reset()
         self.metrics["door_is_open"] = torch.zeros(self.num_envs, device=self.device, dtype=torch.float32)
@@ -77,7 +67,7 @@ class ElevatorDoorCommand(CommandTerm):
         msg = "ElevatorDoorCommand:\n"
         msg += f"\tCommand dimension: {tuple(self.command.shape[1:])}\n"
         msg += f"\tResampling time range: {self.cfg.resampling_time_range}\n"
-        msg += f"\tDoor joint: {self.cfg.door_joint_name} (index: {self._door_joint_idx})\n"
+        msg += f"\tDoor control: USD mesh translation (position delta: 0.0 to -0.5)\n"
         return msg
 
     """
@@ -98,18 +88,20 @@ class ElevatorDoorCommand(CommandTerm):
 
     def _update_metrics(self):
         """Update metrics based on current door state."""
-        # Get current door joint positions
-        current_door_pos = self.elevator.data.joint_pos[:, self._door_joint_idx]
+        # Note: Door is now controlled via USD mesh translation, not joint positions
+        # Metrics are simplified - we just track the command state, not actual door position
+        # For accurate metrics, we would need to read from USD mesh, which is complex
         
-        # Compute position error
         target_pos = self.door_command.squeeze(-1)
-        self.metrics["door_position_error"] = torch.abs(current_door_pos - target_pos)
+        # Position error is always 0 since we can't measure actual door position here
+        # The door actions handle the actual mesh translation
+        self.metrics["door_position_error"] = torch.zeros_like(target_pos)
         
-        # Check if door is considered open (within threshold of open position)
-        open_threshold = 0.1  # Consider door open if within 0.1 of target
-        # Store as float (0.0 or 1.0) instead of boolean to allow torch.mean() in reset()
+        # Check if door command is open (based on command, not actual position)
+        # Door is "open" if command is close to open position
+        open_threshold = 0.1
         self.metrics["door_is_open"] = (
-            torch.abs(current_door_pos - self.cfg.door_open_position) < open_threshold
+            torch.abs(target_pos - self.cfg.door_open_position) < open_threshold
         ).float()
 
     def _resample_command(self, env_ids: Sequence[int]):
@@ -163,8 +155,7 @@ class ElevatorDoorCommand(CommandTerm):
         """
         # TODO: Implement debug visualization callback
         # This could update markers showing door target vs current position
-        if not self.elevator.is_initialized:
-            return
-        # Update visualization markers here if implemented
+        # Note: Door is now a USD mesh, not part of elevator articulation
+        # Visualization would need to be updated to work with USD meshes if needed
         pass
 
