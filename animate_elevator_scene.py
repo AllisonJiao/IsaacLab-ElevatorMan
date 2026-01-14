@@ -41,8 +41,11 @@ import omni.usd
 from pxr import UsdGeom, Gf, Usd
 
 # Get door USD asset paths
-DOOR1_USD_PATH = "IsaacLab-ElevatorMan/assets/door1.usdc"
-DOOR2_USD_PATH = "IsaacLab-ElevatorMan/assets/door2.usdc"
+# Use absolute paths calculated from script location (like cfg/elevator.py)
+_CUR_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = _CUR_DIR  # animate_elevator_scene.py is in the project root
+DOOR1_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "door1.usdc")
+DOOR2_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "door2.usdc")
 
 @configclass
 class ElevatorSceneCfg(InteractiveSceneCfg):
