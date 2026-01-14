@@ -54,7 +54,12 @@ class ElevatorDoorCommand(CommandTerm):
         
         # create buffers
         # -- commands: door target position (0.0 = closed, -0.5 = open)
-        self.door_command = torch.zeros(self.num_envs, 1, device=self.device)
+        # Initialize to open position by default
+        self.door_command = torch.full(
+            (self.num_envs, 1), 
+            self.cfg.door_open_position, 
+            device=self.device
+        )
         
         # -- metrics
         # Note: Metrics are simplified since we don't track door joint position anymore
