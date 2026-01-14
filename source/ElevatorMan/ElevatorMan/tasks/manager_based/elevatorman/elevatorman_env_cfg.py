@@ -104,10 +104,10 @@ class ActionsCfg:
     arm_action: mdp.JointPositionActionCfg = MISSING
     gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
     
-    # Door command action - applies door commands from command manager
+    # Door command action - applies door commands from command manager to door mesh
     door_action: elevatorman_mdp.DoorCommandActionCfg = elevatorman_mdp.DoorCommandActionCfg(
-        asset_name="elevator",  # Use asset_name (required by base class)
-        door_joint_name="door2_joint",
+        asset_name="elevator",  # Required by base class but not used for door mesh control
+        door_prim_path="{ENV_REGEX_NS}/Door1",  # Path to door mesh (supports multi-env)
         command_name="elevator_door",
     )
 

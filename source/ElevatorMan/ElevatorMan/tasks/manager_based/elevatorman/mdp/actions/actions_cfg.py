@@ -21,13 +21,12 @@ class DoorCommandActionCfg(ActionTermCfg):
     class_type: type = door_actions.DoorCommandAction
     """The class type for the action term."""
 
-    # asset_name is required by ActionTermCfg base class
-    # We'll use it to specify the elevator articulation
+    # asset_name is not used for door mesh control, but required by ActionTermCfg base class
     asset_name: Union[str, type(MISSING)] = MISSING  # type: ignore
-    """Name of the elevator articulation in the scene (required by base class)."""
+    """Name of the elevator articulation in the scene (required by base class, but not used for door control)."""
 
-    door_joint_name: str = "door2_joint"
-    """Name of the door joint to control. Defaults to 'door2_joint'."""
+    door_prim_path: str = "{ENV_REGEX_NS}/Door1"
+    """Prim path to the door mesh (supports {ENV_REGEX_NS} for multi-env). Defaults to '{ENV_REGEX_NS}/Door1'."""
 
     command_name: str = "elevator_door"
     """Name of the command term to read from. Defaults to 'elevator_door'."""
