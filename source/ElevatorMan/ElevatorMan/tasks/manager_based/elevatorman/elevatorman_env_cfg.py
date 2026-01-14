@@ -152,8 +152,8 @@ class ElevatormanEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.physx.friction_correlation_distance = 0.00625
 
         # set viewer to see the whole scene
-        self.viewer.eye = [1.5, 1.8, 1.5]
-        self.viewer.lookat = [-2.0, 1.0, -1.05]
+        self.viewer.eye = [1.5, 1.8, 2.5]
+        self.viewer.lookat = [-2.0, 1.0, 0]
 
 
 """
