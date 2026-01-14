@@ -225,10 +225,14 @@ class ElevatorDoorCommand(CommandTerm):
             # Clear existing references
             screen_prim.GetReferences().ClearReferences()
             
-            # Add new reference to the selected screen USD file
-            # Import here to avoid import issues at module level
-            from isaaclab.sim.utils.prims import add_usd_reference
-            add_usd_reference(prim_path=screen_prim_path, usd_path=screen_usd_path, prim_type="Xform", stage=stage)
+            # Add new reference to the selected screen USD file using USD API directly
+            # This avoids import issues with isaaclab.sim.utils.prims
+            success = screen_prim.GetReferences().AddReference(screen_usd_path)
+            if not success:
+                raise RuntimeError(
+                    f"Unable to add USD reference to the prim at path: {screen_prim_path} "
+                    f"from the USD file at path: {screen_usd_path}"
+                )
             
             # Update tracking
             self._current_screen[env_id] = screen_filename
