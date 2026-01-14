@@ -53,12 +53,25 @@ class ElevatorDoorCommand(CommandTerm):
         from isaaclab.assets import Articulation
         self._elevator: Articulation = env.scene[cfg.elevator_name]
         
-        # Find button joint indices (all buttons match pattern: button_[0-3]_[0-1]_joint)
+        # Find button joint indices for door control
+        # Only include button_G (ground) and buttons 2-6, exclude button_open and button_close
+        # Mapping based on URDF mesh files:
+        #   button_0_0_joint → button_5.dae (button 5)
+        #   button_0_1_joint → button_6.dae (button 6)
+        #   button_1_0_joint → button_3.dae (button 3)
+        #   button_1_1_joint → button_4.dae (button 4)
+        #   button_2_0_joint → button_ground.dae (button_G)
+        #   button_2_1_joint → button_2.dae (button 2)
+        #   button_3_0_joint → button_open.dae (EXCLUDE - open button)
+        #   button_3_1_joint → button_close.dae (EXCLUDE - close button)
         button_joint_names = [
-            "button_0_0_joint", "button_0_1_joint",
-            "button_1_0_joint", "button_1_1_joint",
-            "button_2_0_joint", "button_2_1_joint",
-            "button_3_0_joint", "button_3_1_joint",
+            "button_0_0_joint",  # button 5
+            "button_0_1_joint",  # button 6
+            "button_1_0_joint",  # button 3
+            "button_1_1_joint",  # button 4
+            "button_2_0_joint",  # button_G (ground)
+            "button_2_1_joint",  # button 2
+            # Excluded: button_3_0_joint (open), button_3_1_joint (close)
         ]
         self._button_joint_ids, _ = self._elevator.find_joints(button_joint_names)
         self._button_joint_ids = torch.as_tensor(self._button_joint_ids, device=self.device, dtype=torch.long)
@@ -96,7 +109,7 @@ class ElevatorDoorCommand(CommandTerm):
         # Debug print: show initialization
         print(f"\033[94m[DOOR_CMD] Initialized: button-triggered mode, "
               f"open_position={cfg.door_open_position}, close_position={cfg.door_close_position}, "
-              f"button_joints={len(self._button_joint_ids)}, "
+              f"button_joints={len(self._button_joint_ids)} (button_G, button_2-6 only, excluding open/close), "
               f"auto_close_delay={3.0}s ({self._door_auto_close_delay_steps} steps)\033[0m")
 
     def __str__(self) -> str:
