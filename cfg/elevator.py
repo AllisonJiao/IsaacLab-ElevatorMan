@@ -56,7 +56,7 @@ ELEVATOR_CFG = ArticulationCfg(
             "button_2_1_joint": 0.0,
             "button_3_0_joint": 0.0,
             "button_3_1_joint": 0.0,
-            "door2_joint": 0.0,
+            # door2_joint removed - doors are now standalone USD files
         },
         pos=(0.0, 0.0, 0.0),  # init pos of the articulation for teleop
     ),
@@ -69,13 +69,7 @@ ELEVATOR_CFG = ArticulationCfg(
             stiffness=50.0,
             damping=10.0,
         ),
-        # Elevator doors
-        "elevator_doors": ImplicitActuatorCfg(
-            joint_names_expr=["door2_joint"],
-            effort_limit_sim=400.0,
-            velocity_limit_sim=100,
-            stiffness=100.0,
-            damping=20.0,
-        ),
+            # Elevator doors removed - doors are now standalone USD files
+            # Door animation is handled via USD Xform control, not joints
     },
 )
