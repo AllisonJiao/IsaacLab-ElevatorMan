@@ -40,13 +40,19 @@ from isaaclab.controllers.config.rmp_flow import AGIBOT_RIGHT_ARM_RMPFLOW_CFG  #
 # Command settings
 ##
 
-# Create Ranges config with random open/close probability (outside class to avoid being treated as command term)
+# Create Ranges config with 50/50 open/close probability (outside class to avoid being treated as command term)
+# Following the Isaac Lab tutorial pattern: ranges are configured separately
 _door_ranges = elevatorman_mdp.ElevatorDoorCommandCfg.Ranges()
-_door_ranges.open_probability = (0.0, 1.0)  # Random: 0-100% probability - door can be either open or closed
+_door_ranges.open_probability = (0.5, 0.5)  # 50% probability - door randomly opens or closes on resample
 
 @configclass
 class CommandsCfg:
-    """Command terms for the MDP."""
+    """Command terms for the MDP.
+    
+    Following the Isaac Lab tutorial pattern for command configuration.
+    The door command will be resampled randomly (50/50 open/close) every 5-10 seconds.
+    Eventually, this will be triggered by button presses instead of random resampling.
+    """
 
     elevator_door = elevatorman_mdp.ElevatorDoorCommandCfg(
         elevator_name="elevator",  # Required but not used for door mesh control

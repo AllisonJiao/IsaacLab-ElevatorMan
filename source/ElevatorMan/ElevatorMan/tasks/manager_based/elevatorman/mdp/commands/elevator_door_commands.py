@@ -120,12 +120,17 @@ class ElevatorDoorCommand(CommandTerm):
             env_ids: Environment IDs to resample commands for.
         """
         # Sample door state based on open probability range
-        r = torch.empty(len(env_ids), device=self.device)
-        open_prob = r.uniform_(*self.cfg.ranges.open_probability)
+        # The open_probability range defines the probability of door being open
+        # e.g., (0.0, 1.0) means 0-100% chance (random), (0.5, 0.5) means 50% chance
+        prob_min, prob_max = self.cfg.ranges.open_probability
+        open_prob = torch.empty(len(env_ids), device=self.device).uniform_(prob_min, prob_max)
         
-        # Determine door state: -0.5 = open, 0.0 = closed
-        # Use probability to decide: if random value < open_prob, door should be open
-        door_state = (r.uniform_(0.0, 1.0) < open_prob).float()
+        # Sample random values to compare against the probability
+        random_vals = torch.empty(len(env_ids), device=self.device).uniform_(0.0, 1.0)
+        
+        # Determine door state: 1.0 = open, 0.0 = closed
+        # If random value < open_prob, door should be open
+        door_state = (random_vals < open_prob).float()
         
         # Map to door positions: 0.0 -> close, -0.5 = open
         old_commands = self.door_command[env_ids, 0].clone()
@@ -138,8 +143,9 @@ class ElevatorDoorCommand(CommandTerm):
         for i, env_id in enumerate(env_ids):
             old_cmd = old_commands[i].item()
             new_cmd = self.door_command[env_id, 0].item()
+            prob_used = open_prob[i].item()
             state_str = "OPEN" if abs(new_cmd - self.cfg.door_open_position) < 0.01 else "CLOSED"
-            print(f"\033[92m[DOOR_CMD] Env {env_id}: Resampled command: {old_cmd:.3f} -> {new_cmd:.3f} ({state_str})\033[0m")
+            print(f"\033[92m[DOOR_CMD] Env {env_id}: Resampled command: {old_cmd:.3f} -> {new_cmd:.3f} ({state_str}), prob={prob_used:.2f}\033[0m")
 
     def _update_command(self):
         """Update the door command.
