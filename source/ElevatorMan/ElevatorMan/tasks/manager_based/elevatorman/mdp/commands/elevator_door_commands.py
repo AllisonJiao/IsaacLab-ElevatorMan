@@ -73,6 +73,10 @@ class ElevatorDoorCommand(CommandTerm):
         # Debouncing: track previous button states to detect button press events (not just held state)
         self._prev_button_pressed = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
         
+        # Automatic door closing: track when door was opened and close it after delay
+        self._door_open_step = torch.full((self.num_envs,), -1, device=self.device, dtype=torch.long)  # Step when door was opened (-1 = not open)
+        self._door_auto_close_delay_steps = int(3.0 / env.step_dt)  # Close door after 3 seconds (convert to steps)
+        
         # create buffers
         # -- commands: door target position (0.0 = closed, -0.5 = open)
         # Initialize to closed position by default
@@ -92,7 +96,8 @@ class ElevatorDoorCommand(CommandTerm):
         # Debug print: show initialization
         print(f"\033[94m[DOOR_CMD] Initialized: button-triggered mode, "
               f"open_position={cfg.door_open_position}, close_position={cfg.door_close_position}, "
-              f"button_joints={len(self._button_joint_ids)}\033[0m")
+              f"button_joints={len(self._button_joint_ids)}, "
+              f"auto_close_delay={3.0}s ({self._door_auto_close_delay_steps} steps)\033[0m")
 
     def __str__(self) -> str:
         msg = "ElevatorDoorCommand:\n"
@@ -147,6 +152,9 @@ class ElevatorDoorCommand(CommandTerm):
         # Reset button state tracking for resampled environments
         self._prev_button_pressed[env_ids] = False
         
+        # Reset door open step tracking
+        self._door_open_step[env_ids] = -1
+        
         # Re-initialize default button positions after reset (will be set on next _update_command call)
         # This ensures we track movement relative to the reset state
         if self._button_default_positions is not None:
@@ -154,23 +162,25 @@ class ElevatorDoorCommand(CommandTerm):
             button_positions = self._elevator.data.joint_pos[:, self._button_joint_ids]
             self._button_default_positions[env_ids] = button_positions[env_ids].clone()
         
-        # Optionally reset door to closed state on reset
-        # (or keep current state - uncomment below to reset to closed)
-        # self.door_command[env_ids, 0] = self.cfg.door_close_position
+        # Reset door to closed state on reset
+        self.door_command[env_ids, 0] = self.cfg.door_close_position
         
         # Debug print: show reset
         for env_id in env_ids:
             cmd_val = self.door_command[env_id, 0].item()
             state_str = "OPEN" if abs(cmd_val - self.cfg.door_open_position) < 0.01 else "CLOSED"
-            print(f"\033[94m[DOOR_CMD] Env {env_id}: Reset (button state tracking cleared, defaults updated), "
+            print(f"\033[94m[DOOR_CMD] Env {env_id}: Reset (button state tracking cleared, defaults updated, door closed), "
                   f"current command={cmd_val:.3f} ({state_str})\033[0m")
 
     def _update_command(self):
-        """Update the door command based on button presses.
+        """Update the door command based on button presses and automatic closing.
         
         This is called each step. Checks if any button is pressed (moved at least 0.001 from default)
-        and toggles door state.
+        and opens the door. Also automatically closes the door after a delay if it's open.
         """
+        # Get current step counter from environment
+        current_step = self._env.common_step_counter
+        
         # Get current button joint positions
         button_positions = self._elevator.data.joint_pos[:, self._button_joint_ids]  # Shape: (num_envs, num_buttons)
         
@@ -190,28 +200,46 @@ class ElevatorDoorCommand(CommandTerm):
         # Detect button press events (transition from not pressed to pressed)
         button_press_events = buttons_pressed & ~self._prev_button_pressed
         
-        # Toggle door state when button is pressed
+        # Handle button press events: open the door (don't toggle - always open on button press)
         for env_id in range(self.num_envs):
             if button_press_events[env_id]:
-                # Toggle door: if currently open, close it; if currently closed, open it
+                # Open the door when button is pressed (regardless of current state)
                 current_cmd = self.door_command[env_id, 0].item()
                 is_currently_open = abs(current_cmd - self.cfg.door_open_position) < 0.01
                 
-                if is_currently_open:
-                    # Close the door
-                    new_cmd = self.cfg.door_close_position
-                    state_str = "CLOSED"
-                else:
+                if not is_currently_open:
                     # Open the door
-                    new_cmd = self.cfg.door_open_position
-                    state_str = "OPEN"
-                
-                self.door_command[env_id, 0] = new_cmd
-                
-                # Debug print: show button press event
-                max_movement = button_movements[env_id].max().item()  # Get maximum button movement
-                print(f"\033[92m[DOOR_CMD] Env {env_id}: Button pressed! (movement={max_movement:.4f}m) "
-                      f"Toggling door: {current_cmd:.3f} -> {new_cmd:.3f} ({state_str})\033[0m")
+                    self.door_command[env_id, 0] = self.cfg.door_open_position
+                    self._door_open_step[env_id] = current_step  # Record when door was opened
+                    
+                    # Debug print: show button press event
+                    max_movement = button_movements[env_id].max().item()  # Get maximum button movement
+                    print(f"\033[92m[DOOR_CMD] Env {env_id}: Button pressed! (movement={max_movement:.4f}m) "
+                          f"Opening door: {current_cmd:.3f} -> {self.cfg.door_open_position:.3f} (OPEN)\033[0m")
+                else:
+                    # Door is already open, just update the open step counter
+                    self._door_open_step[env_id] = current_step
+                    max_movement = button_movements[env_id].max().item()
+                    print(f"\033[93m[DOOR_CMD] Env {env_id}: Button pressed while door already open (movement={max_movement:.4f}m), "
+                          f"resetting auto-close timer\033[0m")
+        
+        # Automatic door closing: close door if it's been open for too long
+        for env_id in range(self.num_envs):
+            current_cmd = self.door_command[env_id, 0].item()
+            is_currently_open = abs(current_cmd - self.cfg.door_open_position) < 0.01
+            
+            if is_currently_open and self._door_open_step[env_id] >= 0:
+                # Check if enough time has passed since door was opened
+                steps_since_open = current_step - self._door_open_step[env_id]
+                if steps_since_open >= self._door_auto_close_delay_steps:
+                    # Automatically close the door
+                    self.door_command[env_id, 0] = self.cfg.door_close_position
+                    self._door_open_step[env_id] = -1  # Reset open step counter
+                    print(f"\033[93m[DOOR_CMD] Env {env_id}: Auto-closing door after {steps_since_open} steps "
+                          f"({steps_since_open * self._env.step_dt:.2f}s)\033[0m")
+            elif not is_currently_open:
+                # Door is closed, reset open step counter
+                self._door_open_step[env_id] = -1
         
         # Update previous button state for next step
         self._prev_button_pressed = buttons_pressed.clone()
