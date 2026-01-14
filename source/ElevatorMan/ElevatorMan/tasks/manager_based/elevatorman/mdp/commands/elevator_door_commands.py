@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING
 
 from isaaclab.managers import CommandTerm
 import isaaclab.sim as sim_utils
-from isaaclab.sim.utils import add_usd_reference
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -227,7 +226,9 @@ class ElevatorDoorCommand(CommandTerm):
             screen_prim.GetReferences().ClearReferences()
             
             # Add new reference to the selected screen USD file
-            add_usd_reference(screen_prim_path, screen_usd_path, prim_type="Xform", stage=stage)
+            # Import here to avoid import issues at module level
+            from isaaclab.sim.utils.prims import add_usd_reference
+            add_usd_reference(prim_path=screen_prim_path, usd_path=screen_usd_path, prim_type="Xform", stage=stage)
             
             # Update tracking
             self._current_screen[env_id] = screen_filename
