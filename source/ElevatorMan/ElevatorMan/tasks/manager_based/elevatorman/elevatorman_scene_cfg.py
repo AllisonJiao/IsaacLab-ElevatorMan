@@ -33,6 +33,7 @@ for _ in range(10):
 DOOR1_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "door1.usdc")
 DOOR2_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "door2.usdc")
 
+SCREEN_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "screens", "screen_g_up.usdc")
 
 ##
 # Scene definition
@@ -69,6 +70,15 @@ class ElevatormanSceneCfg(InteractiveSceneCfg):
             joint_pos=ELEVATOR_CFG.init_state.joint_pos,  # preserve original joint positions
             pos=(0.0, 0.0, 0.0),  # Match ground plane and robot z-position
         ),
+    )
+
+    # Screen
+    screen = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Screen",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=SCREEN_USD_PATH
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(-1.86, 0.20, 2.00)),
     )
 
     # Door1 - animated door (moving, controlled via USD mesh translation)
