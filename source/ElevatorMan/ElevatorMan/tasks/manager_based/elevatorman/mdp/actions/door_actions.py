@@ -103,6 +103,9 @@ class DoorCommandAction(ActionTerm):
             self._door_translate_attrs.append(translate_attr)
             
             # Cache initial transform
+            # Note: xformOp:translate is relative to the prim's base position (set by init_state.pos)
+            # We only care about X and Y for door animation (door opens along X axis)
+            # Z position is controlled by init_state.pos in the scene config, so we set Z to 0.0 here
             init_t = translate_attr.Get()
             if init_t is None:
                 init_t = (0.0, 0.0, 0.0)
@@ -112,6 +115,14 @@ class DoorCommandAction(ActionTerm):
                     init_t = tuple(init_t)
                 else:
                     init_t = (0.0, 0.0, 0.0)
+            
+            # Ensure Z component is 0.0 since absolute Z is controlled by init_state.pos
+            # Only X and Y are preserved from the USD file (in case there's an offset)
+            init_t = (init_t[0], init_t[1], 0.0)
+            
+            # Set the translate attribute to ensure it matches our expected initial state
+            translate_attr.Set(init_t)
+            
             self._door_init_translates.append(init_t)
 
     @property
