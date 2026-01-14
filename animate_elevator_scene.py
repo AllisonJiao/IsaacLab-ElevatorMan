@@ -47,6 +47,8 @@ _PROJECT_ROOT = _CUR_DIR  # animate_elevator_scene.py is in the project root
 DOOR1_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "door1.usdc")
 DOOR2_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "door2.usdc")
 
+SCREEN_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "screens", "screen_g_up.usdc")
+
 @configclass
 class ElevatorSceneCfg(InteractiveSceneCfg):
 
@@ -63,6 +65,15 @@ class ElevatorSceneCfg(InteractiveSceneCfg):
 
     # elevator (for buttons)
     elevator: ArticulationCfg = ELEVATOR_CFG.replace(prim_path="/World/elevator")
+
+    # screen
+    screen = AssetBaseCfg(
+        prim_path="/World/Screen",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=SCREEN_USD_PATH
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(-1.86, 0.20, 2.00)),
+    )
 
     # Door1 - animated door (moving)
     door1 = AssetBaseCfg(
