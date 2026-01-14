@@ -175,11 +175,11 @@ class DoorCommandAction(ActionTerm):
             else:
                 self._debug_counter = 0
             
-            # Print every 60 steps (roughly once per second at 60Hz)
-            if self._debug_counter % 60 == 0:
-                state_str = "OPEN" if abs(door_delta - (-0.5)) < 0.01 else "CLOSED"
-                print(f"\033[93m[DOOR_ACTION] Env {env_id}: Applying command={door_delta:.3f} ({state_str}), "
-                      f"new_translate=({new_t[0]:.3f}, {new_t[1]:.3f}, {new_t[2]:.3f})\033[0m")
+            # # Print every 60 steps (roughly once per second at 60Hz)
+            # if self._debug_counter % 60 == 0:
+            #     state_str = "OPEN" if abs(door_delta - (-0.5)) < 0.01 else "CLOSED"
+            #     print(f"\033[93m[DOOR_ACTION] Env {env_id}: Applying command={door_delta:.3f} ({state_str}), "
+            #           f"new_translate=({new_t[0]:.3f}, {new_t[1]:.3f}, {new_t[2]:.3f})\033[0m")
 
     def reset(self, env_ids: torch.Tensor | None = None):
         """Reset the door to initial position for specified environments."""
