@@ -124,6 +124,10 @@ class DoorCommandAction(ActionTerm):
             translate_attr.Set(init_t)
             
             self._door_init_translates.append(init_t)
+            
+            # Debug print: show initialization
+            print(f"\033[94m[DOOR_ACTION] Env {env_id}: Initialized door at prim_path={prim_path}, "
+                  f"init_translate={init_t}\033[0m")
 
     @property
     def action_dim(self) -> int:
@@ -164,6 +168,18 @@ class DoorCommandAction(ActionTerm):
             # Update door position: initial position + delta along X axis
             new_t = (init_t[0] + door_delta, init_t[1], init_t[2])
             self._door_translate_attrs[env_id].Set(new_t)
+            
+            # Debug print: show when actions are applied (only print occasionally to avoid spam)
+            if hasattr(self, '_debug_counter'):
+                self._debug_counter += 1
+            else:
+                self._debug_counter = 0
+            
+            # Print every 60 steps (roughly once per second at 60Hz)
+            if self._debug_counter % 60 == 0:
+                state_str = "OPEN" if abs(door_delta - (-0.5)) < 0.01 else "CLOSED"
+                print(f"\033[93m[DOOR_ACTION] Env {env_id}: Applying command={door_delta:.3f} ({state_str}), "
+                      f"new_translate=({new_t[0]:.3f}, {new_t[1]:.3f}, {new_t[2]:.3f})\033[0m")
 
     def reset(self, env_ids: torch.Tensor | None = None):
         """Reset the door to initial position for specified environments."""

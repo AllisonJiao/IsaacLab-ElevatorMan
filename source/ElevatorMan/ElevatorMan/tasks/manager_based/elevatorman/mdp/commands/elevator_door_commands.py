@@ -62,6 +62,10 @@ class ElevatorDoorCommand(CommandTerm):
         self.metrics["door_position_error"] = torch.zeros(self.num_envs, device=self.device)
         # Store as float (0.0 = closed, 1.0 = open) to allow torch.mean() in reset()
         self.metrics["door_is_open"] = torch.zeros(self.num_envs, device=self.device, dtype=torch.float32)
+        
+        # Debug print: show initialization
+        print(f"\033[94m[DOOR_CMD] Initialized: resampling_time_range={cfg.resampling_time_range}, "
+              f"open_position={cfg.door_open_position}, close_position={cfg.door_close_position}\033[0m")
 
     def __str__(self) -> str:
         msg = "ElevatorDoorCommand:\n"
@@ -118,11 +122,19 @@ class ElevatorDoorCommand(CommandTerm):
         # Use probability to decide: if random value < open_prob, door should be open
         door_state = (r.uniform_(0.0, 1.0) < open_prob).float()
         
-        # Map to door positions: 0.0 -> close, -0.5 -> open
+        # Map to door positions: 0.0 -> close, -0.5 = open
+        old_commands = self.door_command[env_ids, 0].clone()
         self.door_command[env_ids, 0] = (
             door_state * self.cfg.door_open_position + 
             (1.0 - door_state) * self.cfg.door_close_position
         )
+        
+        # Debug print: show when commands are resampled
+        for i, env_id in enumerate(env_ids):
+            old_cmd = old_commands[i].item()
+            new_cmd = self.door_command[env_id, 0].item()
+            state_str = "OPEN" if abs(new_cmd - self.cfg.door_open_position) < 0.01 else "CLOSED"
+            print(f"\033[92m[DOOR_CMD] Env {env_id}: Resampled command: {old_cmd:.3f} -> {new_cmd:.3f} ({state_str})\033[0m")
 
     def _update_command(self):
         """Update the door command.
@@ -130,7 +142,16 @@ class ElevatorDoorCommand(CommandTerm):
         This is called each step. For door commands, we typically don't need
         to update the command continuously (it's set via resampling).
         """
-        pass
+        # Debug: Print current command value periodically (every 60 steps ~ 1 second at 60Hz)
+        if not hasattr(self, '_update_counter'):
+            self._update_counter = 0
+        self._update_counter += 1
+        
+        if self._update_counter % 60 == 0:
+            for env_id in range(self.num_envs):
+                cmd_val = self.door_command[env_id, 0].item()
+                state_str = "OPEN" if abs(cmd_val - self.cfg.door_open_position) < 0.01 else "CLOSED"
+                print(f"\033[96m[DOOR_CMD] Env {env_id}: Current command={cmd_val:.3f} ({state_str})\033[0m")
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         """Set debug visualization for the door command.
