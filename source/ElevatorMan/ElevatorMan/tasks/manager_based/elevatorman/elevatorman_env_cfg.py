@@ -40,20 +40,19 @@ from isaaclab.controllers.config.rmp_flow import AGIBOT_RIGHT_ARM_RMPFLOW_CFG  #
 # Command settings
 ##
 
+# Create Ranges config with always-open probability (outside class to avoid being treated as command term)
+_door_ranges = elevatorman_mdp.ElevatorDoorCommandCfg.Ranges()
+_door_ranges.open_probability = (1.0, 1.0)  # Always open (100% probability) - door will stay open
 
 @configclass
 class CommandsCfg:
     """Command terms for the MDP."""
 
-    # Create Ranges config with always-open probability
-    door_ranges = elevatorman_mdp.ElevatorDoorCommandCfg.Ranges()
-    door_ranges.open_probability = (1.0, 1.0)  # Always open (100% probability) - door will stay open
-    
     elevator_door = elevatorman_mdp.ElevatorDoorCommandCfg(
         elevator_name="elevator",  # Required but not used for door mesh control
         resampling_time_range=(5.0, 10.0),  # Resample door command every 5-10 seconds
         debug_vis=False,
-        ranges=door_ranges,
+        ranges=_door_ranges,
         door_open_position=-0.5,  # 50 cm along chosen axis (translation delta)
         door_close_position=0.0,
     )
