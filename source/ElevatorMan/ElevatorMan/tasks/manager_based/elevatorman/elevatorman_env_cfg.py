@@ -50,15 +50,15 @@ class CommandsCfg:
     """Command terms for the MDP.
     
     Following the Isaac Lab tutorial pattern for command configuration.
-    The door command will be resampled randomly (50/50 open/close) every 5-10 seconds.
-    Eventually, this will be triggered by button presses instead of random resampling.
+    The door command is triggered by button presses - when the robot pushes any elevator
+    button (joint position goes negative), the door toggles between open and closed.
     """
 
     elevator_door = elevatorman_mdp.ElevatorDoorCommandCfg(
-        elevator_name="elevator",  # Required but not used for door mesh control
-        resampling_time_range=(5.0, 10.0),  # Resample door command every 5-10 seconds
+        elevator_name="elevator",  # Required: used to access button joints for press detection
+        resampling_time_range=(999.0, 999.0),  # Disable time-based resampling (use button presses instead)
         debug_vis=False,
-        ranges=_door_ranges,
+        ranges=_door_ranges,  # Not used in button-triggered mode, but kept for compatibility
         door_open_position=-0.5,  # 50 cm along chosen axis (translation delta)
         door_close_position=0.0,
     )

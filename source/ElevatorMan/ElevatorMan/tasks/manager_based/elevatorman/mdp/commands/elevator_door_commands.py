@@ -49,15 +49,32 @@ class ElevatorDoorCommand(CommandTerm):
         # initialize the base class
         super().__init__(cfg, env)
 
-        # Note: Door is now a standalone USD mesh, not a joint in the elevator articulation
-        # We still need elevator_name for base class, but don't use it for door control
+        # Get elevator articulation to monitor button joints
+        from isaaclab.assets import Articulation
+        self._elevator: Articulation = env.scene[cfg.elevator_name]
+        
+        # Find button joint indices (all buttons match pattern: button_[0-3]_[0-1]_joint)
+        button_joint_names = [
+            "button_0_0_joint", "button_0_1_joint",
+            "button_1_0_joint", "button_1_1_joint",
+            "button_2_0_joint", "button_2_1_joint",
+            "button_3_0_joint", "button_3_1_joint",
+        ]
+        self._button_joint_ids, _ = self._elevator.find_joints(button_joint_names)
+        self._button_joint_ids = torch.as_tensor(self._button_joint_ids, device=self.device, dtype=torch.long)
+        
+        # Button press detection threshold (button is "pressed" when position < threshold)
+        self._button_press_threshold = -0.01  # Negative y position indicates button press
+        
+        # Debouncing: track previous button states to detect button press events (not just held state)
+        self._prev_button_pressed = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
         
         # create buffers
         # -- commands: door target position (0.0 = closed, -0.5 = open)
-        # Initialize to open position by default
+        # Initialize to closed position by default
         self.door_command = torch.full(
             (self.num_envs, 1), 
-            self.cfg.door_open_position, 
+            self.cfg.door_close_position, 
             device=self.device
         )
         
@@ -69,8 +86,9 @@ class ElevatorDoorCommand(CommandTerm):
         self.metrics["door_is_open"] = torch.zeros(self.num_envs, device=self.device, dtype=torch.float32)
         
         # Debug print: show initialization
-        print(f"\033[94m[DOOR_CMD] Initialized: resampling_time_range={cfg.resampling_time_range}, "
-              f"open_position={cfg.door_open_position}, close_position={cfg.door_close_position}\033[0m")
+        print(f"\033[94m[DOOR_CMD] Initialized: button-triggered mode, "
+              f"open_position={cfg.door_open_position}, close_position={cfg.door_close_position}, "
+              f"button_joints={len(self._button_joint_ids)}\033[0m")
 
     def __str__(self) -> str:
         msg = "ElevatorDoorCommand:\n"
@@ -116,53 +134,66 @@ class ElevatorDoorCommand(CommandTerm):
     def _resample_command(self, env_ids: Sequence[int]):
         """Resample door commands for specified environments.
         
+        This is called during reset. We don't resample based on time anymore,
+        but we reset the button state tracking.
+        
         Args:
             env_ids: Environment IDs to resample commands for.
         """
-        # Sample door state based on open probability range
-        # The open_probability range defines the probability of door being open
-        # e.g., (0.0, 1.0) means 0-100% chance (random), (0.5, 0.5) means 50% chance
-        prob_min, prob_max = self.cfg.ranges.open_probability
-        open_prob = torch.empty(len(env_ids), device=self.device).uniform_(prob_min, prob_max)
+        # Reset button state tracking for resampled environments
+        self._prev_button_pressed[env_ids] = False
         
-        # Sample random values to compare against the probability
-        random_vals = torch.empty(len(env_ids), device=self.device).uniform_(0.0, 1.0)
+        # Optionally reset door to closed state on reset
+        # (or keep current state - uncomment below to reset to closed)
+        # self.door_command[env_ids, 0] = self.cfg.door_close_position
         
-        # Determine door state: 1.0 = open, 0.0 = closed
-        # If random value < open_prob, door should be open
-        door_state = (random_vals < open_prob).float()
-        
-        # Map to door positions: 0.0 -> close, -0.5 = open
-        old_commands = self.door_command[env_ids, 0].clone()
-        self.door_command[env_ids, 0] = (
-            door_state * self.cfg.door_open_position + 
-            (1.0 - door_state) * self.cfg.door_close_position
-        )
-        
-        # Debug print: show when commands are resampled
-        for i, env_id in enumerate(env_ids):
-            old_cmd = old_commands[i].item()
-            new_cmd = self.door_command[env_id, 0].item()
-            prob_used = open_prob[i].item()
-            state_str = "OPEN" if abs(new_cmd - self.cfg.door_open_position) < 0.01 else "CLOSED"
-            print(f"\033[92m[DOOR_CMD] Env {env_id}: Resampled command: {old_cmd:.3f} -> {new_cmd:.3f} ({state_str}), prob={prob_used:.2f}\033[0m")
+        # Debug print: show reset
+        for env_id in env_ids:
+            cmd_val = self.door_command[env_id, 0].item()
+            state_str = "OPEN" if abs(cmd_val - self.cfg.door_open_position) < 0.01 else "CLOSED"
+            print(f"\033[94m[DOOR_CMD] Env {env_id}: Reset (button state tracking cleared), "
+                  f"current command={cmd_val:.3f} ({state_str})\033[0m")
 
     def _update_command(self):
-        """Update the door command.
+        """Update the door command based on button presses.
         
-        This is called each step. For door commands, we typically don't need
-        to update the command continuously (it's set via resampling).
+        This is called each step. Checks if any button is pressed and toggles door state.
         """
-        # Debug: Print current command value periodically (every 60 steps ~ 1 second at 60Hz)
-        if not hasattr(self, '_update_counter'):
-            self._update_counter = 0
-        self._update_counter += 1
+        # Get current button joint positions
+        button_positions = self._elevator.data.joint_pos[:, self._button_joint_ids]  # Shape: (num_envs, num_buttons)
         
-        if self._update_counter % 60 == 0:
-            for env_id in range(self.num_envs):
-                cmd_val = self.door_command[env_id, 0].item()
-                state_str = "OPEN" if abs(cmd_val - self.cfg.door_open_position) < 0.01 else "CLOSED"
-                print(f"\033[96m[DOOR_CMD] Env {env_id}: Current command={cmd_val:.3f} ({state_str})\033[0m")
+        # Check if any button is pressed (position < threshold) for each environment
+        # A button is pressed if its position is below the threshold (negative y)
+        buttons_pressed = (button_positions < self._button_press_threshold).any(dim=1)  # Shape: (num_envs,)
+        
+        # Detect button press events (transition from not pressed to pressed)
+        button_press_events = buttons_pressed & ~self._prev_button_pressed
+        
+        # Toggle door state when button is pressed
+        for env_id in range(self.num_envs):
+            if button_press_events[env_id]:
+                # Toggle door: if currently open, close it; if currently closed, open it
+                current_cmd = self.door_command[env_id, 0].item()
+                is_currently_open = abs(current_cmd - self.cfg.door_open_position) < 0.01
+                
+                if is_currently_open:
+                    # Close the door
+                    new_cmd = self.cfg.door_close_position
+                    state_str = "CLOSED"
+                else:
+                    # Open the door
+                    new_cmd = self.cfg.door_open_position
+                    state_str = "OPEN"
+                
+                self.door_command[env_id, 0] = new_cmd
+                
+                # Debug print: show button press event
+                button_pos = button_positions[env_id].min().item()  # Get most pressed button position
+                print(f"\033[92m[DOOR_CMD] Env {env_id}: Button pressed! (pos={button_pos:.4f}) "
+                      f"Toggling door: {current_cmd:.3f} -> {new_cmd:.3f} ({state_str})\033[0m")
+        
+        # Update previous button state for next step
+        self._prev_button_pressed = buttons_pressed.clone()
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         """Set debug visualization for the door command.
