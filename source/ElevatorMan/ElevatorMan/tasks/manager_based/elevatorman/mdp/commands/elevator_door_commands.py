@@ -7,11 +7,13 @@
 
 from __future__ import annotations
 
+import os
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from isaaclab.managers import CommandTerm
+import isaaclab.sim as sim_utils
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -52,6 +54,49 @@ class ElevatorDoorCommand(CommandTerm):
         # Get elevator articulation to monitor button joints
         from isaaclab.assets import Articulation
         self._elevator: Articulation = env.scene[cfg.elevator_name]
+        
+        # Setup screen mesh replacement
+        # Find project root to locate screen USD files
+        _CUR_DIR = os.path.dirname(os.path.realpath(__file__))
+        _PROJECT_ROOT = _CUR_DIR
+        for _ in range(10):
+            assets_dir = os.path.join(_PROJECT_ROOT, "assets")
+            if os.path.exists(assets_dir):
+                break
+            parent = os.path.dirname(_PROJECT_ROOT)
+            if parent == _PROJECT_ROOT:
+                break
+            _PROJECT_ROOT = parent
+        
+        # Map button indices to screen file names
+        # button_joint_names order: [button_5, button_6, button_3, button_4, button_G, button_2]
+        self._button_to_screen_map = {
+            0: "screen_5_up.usdc",  # button_0_0_joint → button 5
+            1: "screen_6_up.usdc",  # button_0_1_joint → button 6
+            2: "screen_3_up.usdc",  # button_1_0_joint → button 3
+            3: "screen_4_up.usdc",  # button_1_1_joint → button 4
+            4: "screen_g_up.usdc",  # button_2_0_joint → button_G (ground)
+            5: "screen_2_up.usdc",  # button_2_1_joint → button 2
+        }
+        self._screen_base_path = os.path.join(_PROJECT_ROOT, "assets", "screens")
+        
+        # Resolve screen prim paths for all environments
+        screen_prim_path_expr = "{ENV_REGEX_NS}/Screen"
+        if "{ENV_REGEX_NS}" in screen_prim_path_expr:
+            # Replace with actual environment namespace pattern
+            env_ns = env.scene.env_regex_ns
+            screen_prim_path_expr = screen_prim_path_expr.replace("{ENV_REGEX_NS}", env_ns)
+        
+        # Find all matching prim paths for all environments
+        self._screen_prim_paths = sim_utils.find_matching_prim_paths(screen_prim_path_expr)
+        if len(self._screen_prim_paths) != self.num_envs:
+            print(f"\033[93m[DOOR_CMD] Warning: Found {len(self._screen_prim_paths)} screen prim paths for {self.num_envs} environments. "
+                  f"Expected {self.num_envs}. Prim path expression: {screen_prim_path_expr}\033[0m")
+            # Create empty list if screens not found
+            self._screen_prim_paths = [None] * self.num_envs
+        
+        # Track current screen for each environment (to avoid unnecessary updates)
+        self._current_screen = [None] * self.num_envs
         
         # Find button joint indices for door control
         # Only include button_G (ground) and buttons 2-6, exclude button_open and button_close
@@ -135,6 +180,66 @@ class ElevatorDoorCommand(CommandTerm):
     Implementation specific functions.
     """
 
+    def _update_screen_mesh(self, env_id: int, button_idx: int):
+        """Update the screen mesh based on which button was pressed.
+        
+        Args:
+            env_id: Environment ID
+            button_idx: Index of the pressed button (0-5, mapping to buttons 5,6,3,4,G,2)
+        """
+        # Validate environment ID
+        if env_id < 0 or env_id >= self.num_envs:
+            return
+        
+        # Validate button index
+        button_idx_int = int(button_idx)
+        if button_idx_int not in self._button_to_screen_map:
+            return  # Invalid button index
+        
+        # Get the screen file name for this button
+        screen_filename = self._button_to_screen_map[button_idx_int]
+        screen_usd_path = os.path.join(self._screen_base_path, screen_filename)
+        
+        # Check if this screen is already active (avoid unnecessary updates)
+        if self._current_screen[env_id] == screen_filename:
+            return
+        
+        # Get screen prim path for this environment
+        if env_id >= len(self._screen_prim_paths) or self._screen_prim_paths[env_id] is None:
+            return  # Screen prim path not found
+        
+        screen_prim_path = self._screen_prim_paths[env_id]
+        
+        try:
+            # Get current stage
+            from pxr import Usd, Sdf
+            import omni.usd
+            stage = omni.usd.get_context().get_stage()
+            
+            # Get the Screen prim
+            screen_prim = stage.GetPrimAtPath(screen_prim_path)
+            if not screen_prim.IsValid():
+                print(f"\033[93m[DOOR_CMD] Warning: Screen prim not found at {screen_prim_path}\033[0m")
+                return
+            
+            # Clear existing references
+            screen_prim.GetReferences().ClearReferences()
+            
+            # Add new reference to the selected screen USD file
+            from isaaclab.sim.utils.prims import add_usd_reference
+            add_usd_reference(screen_prim_path, screen_usd_path, prim_type="Xform", stage=stage)
+            
+            # Update tracking
+            self._current_screen[env_id] = screen_filename
+            
+            # Debug print
+            button_names = ["5", "6", "3", "4", "G", "2"]
+            button_name = button_names[button_idx_int] if button_idx_int < len(button_names) else str(button_idx_int)
+            print(f"\033[96m[SCREEN] Env {env_id}: Updated screen to {screen_filename} (button {button_name})\033[0m")
+            
+        except Exception as e:
+            print(f"\033[91m[SCREEN] Error updating screen for env {env_id}: {e}\033[0m")
+
     def _update_metrics(self):
         """Update metrics based on current door state."""
         # Note: Door is now controlled via USD mesh translation, not joint positions
@@ -178,11 +283,16 @@ class ElevatorDoorCommand(CommandTerm):
         # Reset door to closed state on reset
         self.door_command[env_ids, 0] = self.cfg.door_close_position
         
+        # Reset screen to default (button_G / screen_g_up.usdc)
+        for env_id in env_ids:
+            self._current_screen[env_id] = None  # Reset tracking
+            self._update_screen_mesh(env_id, 4)  # button_G is index 4
+        
         # Debug print: show reset
         for env_id in env_ids:
             cmd_val = self.door_command[env_id, 0].item()
             state_str = "OPEN" if abs(cmd_val - self.cfg.door_open_position) < 0.01 else "CLOSED"
-            print(f"\033[94m[DOOR_CMD] Env {env_id}: Reset (button state tracking cleared, defaults updated, door closed), "
+            print(f"\033[94m[DOOR_CMD] Env {env_id}: Reset (button state tracking cleared, defaults updated, door closed, screen reset to G), "
                   f"current command={cmd_val:.3f} ({state_str})\033[0m")
 
     def _update_command(self):
@@ -206,19 +316,34 @@ class ElevatorDoorCommand(CommandTerm):
         # Calculate movement from default position (absolute value of displacement)
         button_movements = torch.abs(button_positions - self._button_default_positions)  # Shape: (num_envs, num_buttons)
         
-        # Check if any button is pressed (moved at least threshold from default) for each environment
-        # A button is pressed if its movement exceeds the threshold (0.001 = 0.1 cm)
-        buttons_pressed = (button_movements > self._button_press_threshold).any(dim=1)  # Shape: (num_envs,)
+        # Check which specific buttons are pressed (moved at least threshold from default)
+        buttons_pressed_mask = button_movements > self._button_press_threshold  # Shape: (num_envs, num_buttons)
+        
+        # Check if any button is pressed for each environment
+        buttons_pressed = buttons_pressed_mask.any(dim=1)  # Shape: (num_envs,)
         
         # Detect button press events (transition from not pressed to pressed)
         button_press_events = buttons_pressed & ~self._prev_button_pressed
         
-        # Handle button press events: open the door (don't toggle - always open on button press)
+        # Handle button press events: open the door and update screen
         for env_id in range(self.num_envs):
             if button_press_events[env_id]:
+                # Find which specific button was pressed (first button that exceeds threshold)
+                pressed_button_indices = torch.where(buttons_pressed_mask[env_id])[0]
+                pressed_button_idx = -1
+                if len(pressed_button_indices) > 0:
+                    pressed_button_idx = int(pressed_button_indices[0].item())  # Use first pressed button
+                    
+                    # Update screen based on which button was pressed
+                    self._update_screen_mesh(env_id, pressed_button_idx)
+                
                 # Open the door when button is pressed (regardless of current state)
                 current_cmd = self.door_command[env_id, 0].item()
                 is_currently_open = abs(current_cmd - self.cfg.door_open_position) < 0.01
+                
+                # Get button name for debug print
+                button_names = ["5", "6", "3", "4", "G", "2"]
+                button_name = button_names[pressed_button_idx] if 0 <= pressed_button_idx < len(button_names) else "unknown"
                 
                 if not is_currently_open:
                     # Open the door
@@ -227,13 +352,13 @@ class ElevatorDoorCommand(CommandTerm):
                     
                     # Debug print: show button press event
                     max_movement = button_movements[env_id].max().item()  # Get maximum button movement
-                    print(f"\033[92m[DOOR_CMD] Env {env_id}: Button pressed! (movement={max_movement:.4f}m) "
+                    print(f"\033[92m[DOOR_CMD] Env {env_id}: Button {button_name} pressed! (movement={max_movement:.4f}m) "
                           f"Opening door: {current_cmd:.3f} -> {self.cfg.door_open_position:.3f} (OPEN)\033[0m")
                 else:
                     # Door is already open, just update the open step counter
                     self._door_open_step[env_id] = current_step
                     max_movement = button_movements[env_id].max().item()
-                    print(f"\033[93m[DOOR_CMD] Env {env_id}: Button pressed while door already open (movement={max_movement:.4f}m), "
+                    print(f"\033[93m[DOOR_CMD] Env {env_id}: Button {button_name} pressed while door already open (movement={max_movement:.4f}m), "
                           f"resetting auto-close timer\033[0m")
         
         # Automatic door closing: close door if it's been open for too long
