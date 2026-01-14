@@ -40,6 +40,15 @@ class DoorCommandAction(ActionTerm):
 
     _door_init_translates: list[tuple[float, float, float]]
     """List of initial door translate positions for each environment."""
+    
+    _door_current_deltas: list[float]
+    """List of current door delta positions (relative to initial) for each environment."""
+    
+    _door_target_deltas: list[float]
+    """List of target door delta positions (from commands) for each environment."""
+    
+    _door_animation_speed: float
+    """Speed of door animation in m/s (how fast the door moves per second)."""
 
     def __init__(self, cfg: actions_cfg.DoorCommandActionCfg, env: ManagerBasedEnv):
         """Initialize the door command action term.
@@ -124,10 +133,14 @@ class DoorCommandAction(ActionTerm):
             translate_attr.Set(init_t)
             
             self._door_init_translates.append(init_t)
-            
-            # Debug print: show initialization
-            print(f"\033[94m[DOOR_ACTION] Env {env_id}: Initialized door at prim_path={prim_path}, "
-                  f"init_translate={init_t}\033[0m")
+        
+        # Initialize door animation state
+        self._door_current_deltas = [0.0] * self.num_envs  # Current delta from initial position
+        self._door_target_deltas = [0.0] * self.num_envs   # Target delta from command
+        self._door_animation_speed = 0.5  # m/s - door moves 0.5 m/s (50 cm/s)
+        
+        # Debug print: show initialization
+        print(f"\033[94m[DOOR_ACTION] Initialized {self.num_envs} doors with animation speed={self._door_animation_speed} m/s\033[0m")
 
     @property
     def action_dim(self) -> int:
@@ -150,36 +163,52 @@ class DoorCommandAction(ActionTerm):
         pass
 
     def apply_actions(self):
-        """Apply the door command to the elevator door mesh using USD translate."""
+        """Apply the door command to the elevator door mesh using USD translate with smooth animation."""
         # Get the door command from the command manager
         door_command = self._env.command_manager.get_command(self._command_name)
         
         # door_command shape is (num_envs, 1)
         # Each value represents the door delta position (e.g., -0.5 for open, 0.0 for closed)
         
-        # Convert to CPU numpy/tuple for USD attribute setting
+        # Get simulation timestep for animation
+        dt = self._env.step_dt
+        
+        # Convert to CPU numpy for processing
         door_deltas = door_command.cpu().squeeze(-1).numpy()
         
-        # Apply door translation for each environment
+        # Apply smooth door animation for each environment
         for env_id in range(self.num_envs):
-            door_delta = float(door_deltas[env_id])
-            init_t = self._door_init_translates[env_id]
+            target_delta = float(door_deltas[env_id])
+            current_delta = self._door_current_deltas[env_id]
             
-            # Update door position: initial position + delta along X axis
-            new_t = (init_t[0] + door_delta, init_t[1], init_t[2])
-            self._door_translate_attrs[env_id].Set(new_t)
+            # Update target if command changed
+            if abs(target_delta - self._door_target_deltas[env_id]) > 0.001:
+                self._door_target_deltas[env_id] = target_delta
             
-            # Debug print: show when actions are applied (only print occasionally to avoid spam)
-            if hasattr(self, '_debug_counter'):
-                self._debug_counter += 1
+            # Calculate movement step size based on animation speed
+            max_step_size = self._door_animation_speed * dt  # Maximum movement per step
+            
+            # Interpolate towards target position
+            delta_to_target = target_delta - current_delta
+            if abs(delta_to_target) > 0.001:  # Only animate if not already at target
+                # Move towards target, but limit step size for smooth animation
+                if abs(delta_to_target) <= max_step_size:
+                    # Close enough, snap to target
+                    new_delta = target_delta
+                else:
+                    # Move towards target at animation speed
+                    step = max_step_size if delta_to_target > 0 else -max_step_size
+                    new_delta = current_delta + step
+                
+                self._door_current_deltas[env_id] = new_delta
             else:
-                self._debug_counter = 0
+                # Already at target
+                new_delta = current_delta
             
-            # # Print every 60 steps (roughly once per second at 60Hz)
-            # if self._debug_counter % 60 == 0:
-            #     state_str = "OPEN" if abs(door_delta - (-0.5)) < 0.01 else "CLOSED"
-            #     print(f"\033[93m[DOOR_ACTION] Env {env_id}: Applying command={door_delta:.3f} ({state_str}), "
-            #           f"new_translate=({new_t[0]:.3f}, {new_t[1]:.3f}, {new_t[2]:.3f})\033[0m")
+            # Apply to USD mesh: initial position + current delta along X axis
+            init_t = self._door_init_translates[env_id]
+            new_t = (init_t[0] + new_delta, init_t[1], init_t[2])
+            self._door_translate_attrs[env_id].Set(new_t)
 
     def reset(self, env_ids: torch.Tensor | None = None):
         """Reset the door to initial position for specified environments."""
@@ -189,6 +218,11 @@ class DoorCommandAction(ActionTerm):
         # Reset door positions to initial state
         env_ids_list = env_ids.cpu().tolist()
         for env_id in env_ids_list:
+            # Reset animation state
+            self._door_current_deltas[env_id] = 0.0
+            self._door_target_deltas[env_id] = 0.0
+            
+            # Reset door position to initial
             init_t = self._door_init_translates[env_id]
             self._door_translate_attrs[env_id].Set(init_t)
 
