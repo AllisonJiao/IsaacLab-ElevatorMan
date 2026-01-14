@@ -63,8 +63,12 @@ class ElevatorDoorCommand(CommandTerm):
         self._button_joint_ids, _ = self._elevator.find_joints(button_joint_names)
         self._button_joint_ids = torch.as_tensor(self._button_joint_ids, device=self.device, dtype=torch.long)
         
-        # Button press detection threshold (button is "pressed" when position < threshold)
-        self._button_press_threshold = -0.01  # Negative y position indicates button press
+        # Store default/initial button positions for relative movement detection
+        # We'll initialize this after the first scene update when positions are available
+        self._button_default_positions = None
+        
+        # Button press detection: button is "pressed" when moved at least 0.001 (0.1 cm) from default
+        self._button_press_threshold = 0.001  # 0.1 cm movement threshold
         
         # Debouncing: track previous button states to detect button press events (not just held state)
         self._prev_button_pressed = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
@@ -135,13 +139,20 @@ class ElevatorDoorCommand(CommandTerm):
         """Resample door commands for specified environments.
         
         This is called during reset. We don't resample based on time anymore,
-        but we reset the button state tracking.
+        but we reset the button state tracking and re-initialize default positions.
         
         Args:
             env_ids: Environment IDs to resample commands for.
         """
         # Reset button state tracking for resampled environments
         self._prev_button_pressed[env_ids] = False
+        
+        # Re-initialize default button positions after reset (will be set on next _update_command call)
+        # This ensures we track movement relative to the reset state
+        if self._button_default_positions is not None:
+            # Get current positions as new defaults after reset
+            button_positions = self._elevator.data.joint_pos[:, self._button_joint_ids]
+            self._button_default_positions[env_ids] = button_positions[env_ids].clone()
         
         # Optionally reset door to closed state on reset
         # (or keep current state - uncomment below to reset to closed)
@@ -151,20 +162,30 @@ class ElevatorDoorCommand(CommandTerm):
         for env_id in env_ids:
             cmd_val = self.door_command[env_id, 0].item()
             state_str = "OPEN" if abs(cmd_val - self.cfg.door_open_position) < 0.01 else "CLOSED"
-            print(f"\033[94m[DOOR_CMD] Env {env_id}: Reset (button state tracking cleared), "
+            print(f"\033[94m[DOOR_CMD] Env {env_id}: Reset (button state tracking cleared, defaults updated), "
                   f"current command={cmd_val:.3f} ({state_str})\033[0m")
 
     def _update_command(self):
         """Update the door command based on button presses.
         
-        This is called each step. Checks if any button is pressed and toggles door state.
+        This is called each step. Checks if any button is pressed (moved at least 0.001 from default)
+        and toggles door state.
         """
         # Get current button joint positions
         button_positions = self._elevator.data.joint_pos[:, self._button_joint_ids]  # Shape: (num_envs, num_buttons)
         
-        # Check if any button is pressed (position < threshold) for each environment
-        # A button is pressed if its position is below the threshold (negative y)
-        buttons_pressed = (button_positions < self._button_press_threshold).any(dim=1)  # Shape: (num_envs,)
+        # Initialize default positions on first call (after scene is updated)
+        if self._button_default_positions is None:
+            self._button_default_positions = button_positions.clone()
+            print(f"\033[94m[DOOR_CMD] Initialized button default positions: {self._button_default_positions[0]}\033[0m")
+            return  # Skip detection on first call
+        
+        # Calculate movement from default position (absolute value of displacement)
+        button_movements = torch.abs(button_positions - self._button_default_positions)  # Shape: (num_envs, num_buttons)
+        
+        # Check if any button is pressed (moved at least threshold from default) for each environment
+        # A button is pressed if its movement exceeds the threshold (0.001 = 0.1 cm)
+        buttons_pressed = (button_movements > self._button_press_threshold).any(dim=1)  # Shape: (num_envs,)
         
         # Detect button press events (transition from not pressed to pressed)
         button_press_events = buttons_pressed & ~self._prev_button_pressed
@@ -188,8 +209,8 @@ class ElevatorDoorCommand(CommandTerm):
                 self.door_command[env_id, 0] = new_cmd
                 
                 # Debug print: show button press event
-                button_pos = button_positions[env_id].min().item()  # Get most pressed button position
-                print(f"\033[92m[DOOR_CMD] Env {env_id}: Button pressed! (pos={button_pos:.4f}) "
+                max_movement = button_movements[env_id].max().item()  # Get maximum button movement
+                print(f"\033[92m[DOOR_CMD] Env {env_id}: Button pressed! (movement={max_movement:.4f}m) "
                       f"Toggling door: {current_cmd:.3f} -> {new_cmd:.3f} ({state_str})\033[0m")
         
         # Update previous button state for next step
