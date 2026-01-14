@@ -52,7 +52,7 @@ class ElevatormanSceneCfg(InteractiveSceneCfg):
     # plane
     plane = AssetBaseCfg(
         prim_path="/World/GroundPlane",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0, 0, -1.05]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0, 0, 0.0]),
         spawn=GroundPlaneCfg(),
     )
 
@@ -67,7 +67,7 @@ class ElevatormanSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Elevator",
         init_state=ArticulationCfg.InitialStateCfg(
             joint_pos=ELEVATOR_CFG.init_state.joint_pos,  # preserve original joint positions
-            pos=(0.0, 0.0, -1.05),  # Match ground plane and robot z-position
+            pos=(0.0, 0.0, 0.0),  # Match ground plane and robot z-position
         ),
     )
 
@@ -77,7 +77,7 @@ class ElevatormanSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.UsdFileCfg(
             usd_path=DOOR1_USD_PATH
         ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -1.05)),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
     )
 
     # Door2 - static door (not moving, for reference/display)
@@ -86,6 +86,6 @@ class ElevatormanSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.UsdFileCfg(
             usd_path=DOOR2_USD_PATH
         ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -1.05)),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
     )
 
