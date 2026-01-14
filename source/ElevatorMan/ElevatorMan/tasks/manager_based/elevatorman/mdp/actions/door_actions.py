@@ -13,8 +13,8 @@ from typing import TYPE_CHECKING
 import omni.usd
 from pxr import UsdGeom, Gf
 
+import isaaclab.sim as sim_utils
 from isaaclab.managers.action_manager import ActionTerm
-from isaaclab.sim.utils.queries import find_matching_prim_paths
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -62,7 +62,7 @@ class DoorCommandAction(ActionTerm):
             door_prim_path_expr = door_prim_path_expr.replace("{ENV_REGEX_NS}", env_ns)
         
         # Find all matching prim paths for all environments
-        self._door_prim_paths = find_matching_prim_paths(door_prim_path_expr)
+        self._door_prim_paths = sim_utils.find_matching_prim_paths(door_prim_path_expr)
         if len(self._door_prim_paths) != self.num_envs:
             raise RuntimeError(
                 f"Found {len(self._door_prim_paths)} door prim paths for {self.num_envs} environments. "
