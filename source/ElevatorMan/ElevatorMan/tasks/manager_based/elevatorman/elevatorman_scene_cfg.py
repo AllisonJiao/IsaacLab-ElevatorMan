@@ -18,9 +18,18 @@ from cfg.elevator import ELEVATOR_CFG
 # Get door USD asset paths
 # Use absolute paths calculated from config location (like cfg/elevator.py)
 # File is at: source/ElevatorMan/ElevatorMan/tasks/manager_based/elevatorman/elevatorman_scene_cfg.py
-# Need to go up 7 levels: elevatorman -> manager_based -> tasks -> ElevatorMan -> ElevatorMan -> source -> project root
+# Walk up directory tree to find project root (where assets/ directory exists)
 _CUR_DIR = os.path.dirname(os.path.realpath(__file__))
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(_CUR_DIR)))))))
+_PROJECT_ROOT = _CUR_DIR
+# Walk up to find project root (max 10 levels to avoid infinite loop)
+for _ in range(10):
+    assets_dir = os.path.join(_PROJECT_ROOT, "assets")
+    if os.path.exists(assets_dir):
+        break
+    parent = os.path.dirname(_PROJECT_ROOT)
+    if parent == _PROJECT_ROOT:  # Reached filesystem root
+        break
+    _PROJECT_ROOT = parent
 DOOR1_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "door1.usdc")
 DOOR2_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "door2.usdc")
 
