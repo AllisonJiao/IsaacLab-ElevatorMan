@@ -40,12 +40,10 @@ from cfg.elevator import ELEVATOR_CFG
 import omni.usd
 from pxr import UsdGeom, Gf, Usd
 
-# Get door USD asset paths
+# Get door USD asset paths (both doors are now controlled via joints from URDF)
 # Use absolute paths calculated from script location (like cfg/elevator.py)
 _CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = _CUR_DIR  # animate_elevator_scene.py is in the project root
-DOOR1_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "door1.usdc")
-DOOR2_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "door2.usdc")
 
 SCREEN_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "screens", "screen_g_up.usdc")
 
@@ -75,21 +73,9 @@ class ElevatorSceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=(-1.86, 0.20, 2.00)),
     )
 
-    # Door1 - animated door (moving)
-    door1 = AssetBaseCfg(
-        prim_path="/World/Door1",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=DOOR1_USD_PATH
-        ),
-    )
-
-    # Door2 - static door (not moving)
-    door2 = AssetBaseCfg(
-        prim_path="/World/Door2",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=DOOR2_USD_PATH
-        ),
-    )
+    # Door1 and Door2 are part of the elevator URDF (controlled via joints)
+    # door1_joint: prismatic joint, axis -X, limits 0.0 (closed) to 0.8 (open)
+    # door2_joint: prismatic joint (static, not animated in this script)
 
     # robot
     agibot: ArticulationCfg = AGIBOT_A2D_CFG.replace(
@@ -296,8 +282,7 @@ def run_simulator(
     cached_symmetric_ref_all: torch.Tensor,
     elevator_button_ids: torch.Tensor,
     lift_body_joint_ids: torch.Tensor,
-    door1_translate_attr,
-    door1_init_t: tuple[float, float, float],
+    door1_joint_id: torch.Tensor,
     robot_animation_range: float,
     lift_body_range: float,
 ):
@@ -305,8 +290,10 @@ def run_simulator(
     # Animation parameters
     count = 0
     period = 500
-    open_position = -0.5  # Maximum opening position (negative X)
-    close_position = 0.0  # Closed position
+    # Door1 joint: prismatic joint, axis -X, limits 0.0 (closed) to 0.8 (open)
+    # Joint position 0.0 = closed, 0.8 = open (moves -0.8m in X direction)
+    door_open_joint_position = 0.8  # Maximum opening position (matches URDF limit)
+    door_close_joint_position = 0.0  # Closed position
 
     print("[INFO] Done. Close the window to exit.")
 
@@ -320,15 +307,12 @@ def run_simulator(
             )
             agibot.reset()
             
-            # Reset elevator button positions to default
+            # Reset elevator (including door1 joint and buttons) to default positions
             elevator.write_joint_state_to_sim(
                 elevator.data.default_joint_pos.clone(),
                 elevator.data.default_joint_vel.clone()
             )
             elevator.reset()
-            
-            # Reset door1 position to closed (initial position)
-            door1_translate_attr.Set(door1_init_t)
             
             count = 0
         
@@ -336,39 +320,43 @@ def run_simulator(
         phase = count % period
         alpha = phase / max(1, period - 1)  # Normalized phase [0, 1] for robot animation
 
-        # Calculate door1 animation: open (0→-0.5) then close (-0.5→0)
-        # First half: opening (0→-0.5), second half: closing (-0.5→0)
+        # Calculate door1 joint animation: open (0→0.8) then close (0.8→0)
+        # First half: opening (0→0.8), second half: closing (0.8→0)
         if phase < period / 2:
-            # Opening phase: 0 to -0.5
+            # Opening phase: 0 to 0.8
             t = phase / (period / 2.0)  # Normalized phase [0, 1] for opening
-            door_delta = close_position + t * (open_position - close_position)  # Goes from 0.0 to -0.5
+            door_joint_position = door_close_joint_position + t * (door_open_joint_position - door_close_joint_position)  # Goes from 0.0 to 0.8
         else:
-            # Closing phase: -0.5 to 0
+            # Closing phase: 0.8 to 0
             t = (phase - period / 2.0) / (period / 2.0)  # Normalized phase [0, 1] for closing
-            door_delta = open_position + t * (close_position - open_position)  # Goes from -0.5 to 0.0
+            door_joint_position = door_open_joint_position + t * (door_close_joint_position - door_open_joint_position)  # Goes from 0.8 to 0.0
 
-        # Update door1 position using USD Xform (along negative X axis)
-        new_t = (door1_init_t[0] + door_delta, door1_init_t[1], door1_init_t[2])
-        door1_translate_attr.Set(new_t)
-
+        # Update door1 joint position and elevator button positions together
+        # Start with current joint positions (or default positions)
+        joint_pos_target = elevator.data.default_joint_pos.clone()
+        
+        # Set door1 joint position (prismatic joint controls door movement)
+        joint_pos_target[:, door1_joint_id] = door_joint_position
+        
         # Update elevator button positions - press down gradually over the period
         # Button press animation: starts at 0, reaches max press at phase 0.5, stays pressed
-        joint_pos_target = elevator.data.default_joint_pos.clone()
         button_press_delta = min(phase / (period / 2.0), 1.0) * 0.05  # Max press distance of 0.05
         joint_pos_target[:, elevator_button_ids] += button_press_delta
         
-        # Clamp button joints to their limits
+        # Clamp all joints to their limits
         joint_pos_target = joint_pos_target.clamp_(
             elevator.data.soft_joint_pos_limits[..., 0], elevator.data.soft_joint_pos_limits[..., 1]
         )
         elevator.set_joint_position_target(joint_pos_target)
         elevator.write_data_to_sim()
 
-        # Calculate lift_body animation target (using door delta for consistency)
+        # Calculate lift_body animation target (using door joint position for consistency)
         lift_body_target = None
         if len(lift_body_joint_ids) > 0:
-            # Apply lift_body animation: default position + scaled door_delta
-            lift_body_target = agibot.data.default_joint_pos[:, lift_body_joint_ids] + (abs(door_delta) * lift_body_range)
+            # Apply lift_body animation: default position + scaled door_joint_position
+            # door_joint_position ranges from 0.0 to 0.8, so we normalize it
+            normalized_door_pos = door_joint_position / door_open_joint_position  # 0.0 to 1.0
+            lift_body_target = agibot.data.default_joint_pos[:, lift_body_joint_ids] + (normalized_door_pos * lift_body_range)
 
         # Update robot pose using phase-based animation (with sequential linkage movement)
         # This includes both arm animation and lift_body animation, set together to avoid overwriting
@@ -382,7 +370,7 @@ def run_simulator(
         )
 
         if count % 20 == 0:
-            print(f"[door1-mesh] delta={door_delta:+.4f} translate={new_t}")
+            print(f"[door1-joint] joint_position={door_joint_position:.4f} (0.0=closed, 0.8=open)")
 
         sim.step()
         scene.update(sim.get_physics_dt())
@@ -406,43 +394,14 @@ def main():
     agibot: Articulation = scene["agibot"]
     elevator: Articulation = scene["elevator"]
 
-    # Setup door1 mesh transform animation (door2 stays static)
-    DOOR1_PRIM_PATH = "/World/Door1"
-    stage = omni.usd.get_context().get_stage()
-    door1_prim = stage.GetPrimAtPath(DOOR1_PRIM_PATH)
-    
-    if not door1_prim.IsValid():
-        raise RuntimeError(f"Door1 prim not found at: {DOOR1_PRIM_PATH}")
-
-    # Directly access translate attribute (avoid XformCommonAPI incompatibility)
-    translate_attr = door1_prim.GetAttribute("xformOp:translate")
-    
-    # If translate attribute doesn't exist, try to get/create it via Xformable
-    if not translate_attr or not translate_attr.IsValid():
-        # Check for different possible translate op names
-        for op_name in ["xformOp:translate", "xformOp:translation", "xformOp:translateX"]:
-            attr = door1_prim.GetAttribute(op_name)
-            if attr and attr.IsValid():
-                translate_attr = attr
-                break
-        
-        # If still not found, create one using Xformable
-        if not translate_attr or not translate_attr.IsValid():
-            door1_xformable = UsdGeom.Xformable(door1_prim)  # type: ignore
-            translate_op = door1_xformable.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble)  # type: ignore
-            translate_attr = translate_op.GetAttr()
-    
-    # Cache initial transform
-    init_t = translate_attr.Get()
-    if init_t is None:
-        init_t = (0.0, 0.0, 0.0)
-    else:
-        # Convert to tuple if it's a Vec3d
-        if hasattr(init_t, '__iter__') and len(init_t) == 3:
-            init_t = tuple(init_t)
-        else:
-            init_t = (0.0, 0.0, 0.0)
-    print("[INFO] Door1 initial translate:", init_t)
+    # Setup door1 joint control (prismatic joint from URDF)
+    # door1_joint: axis -X, limits 0.0 (closed) to 0.8 (open)
+    door1_joint_name = "door1_joint"
+    door1_joint_ids, _ = elevator.find_joints([door1_joint_name])
+    if len(door1_joint_ids) == 0:
+        raise RuntimeError(f"Door1 joint '{door1_joint_name}' not found in elevator articulation")
+    door1_joint_id = torch.as_tensor(door1_joint_ids[0], device=elevator.device, dtype=torch.long)
+    print(f"[INFO] Found door1_joint at index {door1_joint_id.item()}")
 
     # Setup robot joint animation - organize into groups: shoulder (1-3), forearm (4-5), gripper (6-7)
     left_shoulder_names = ["left_arm_joint1", "left_arm_joint2", "left_arm_joint3"]
@@ -506,7 +465,7 @@ def main():
         cached_symmetric_ref_all = None
         print("[WARN] No arm joints found for animation. Robot will use default pose.")
 
-    # Setup elevator button joints (doors are now standalone USD meshes)
+    # Setup elevator button joints (both doors are part of elevator URDF, controlled via joints)
     elevator_button_joint_names = ["button_0_0_joint", "button_0_1_joint", "button_1_0_joint", "button_1_1_joint", "button_2_0_joint", "button_2_1_joint", "button_3_0_joint", "button_3_1_joint"]
     elevator_button_ids, _ = elevator.find_joints(elevator_button_joint_names)
     elevator_button_ids = torch.as_tensor(elevator_button_ids, device=elevator.device, dtype=torch.long)
@@ -527,7 +486,7 @@ def main():
         left_joint_groups, right_joint_groups,
         cached_symmetric_refs, cached_symmetric_ref_all,
         elevator_button_ids, lift_body_joint_ids,
-        translate_attr, init_t,
+        door1_joint_id,
         robot_animation_range, lift_body_range
     )
 
