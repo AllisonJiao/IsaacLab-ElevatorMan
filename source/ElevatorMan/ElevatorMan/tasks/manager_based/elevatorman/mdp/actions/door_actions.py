@@ -138,14 +138,11 @@ class DoorCommandAction(ActionTerm):
         # Clamp to joint limits
         new_positions = torch.clamp(new_positions, 0.0, 0.8)
         
-        # Get current joint position targets for all joints
-        joint_pos_targets = self._elevator.get_joint_position_targets().clone()
-        
-        # Update only the door joint
-        joint_pos_targets[:, self._door_joint_id] = new_positions.unsqueeze(-1)
-        
-        # Apply to elevator articulation
-        self._elevator.set_joint_position_target(joint_pos_targets)
+        # Set door joint position target directly (set_joint_position_target can target specific joints)
+        self._elevator.set_joint_position_target(
+            new_positions.unsqueeze(-1),  # Shape: (num_envs, 1)
+            joint_ids=self._door_joint_id.item()  # Single joint ID
+        )
         self._elevator.write_data_to_sim()
 
     def reset(self, env_ids: torch.Tensor | None = None):
@@ -157,12 +154,11 @@ class DoorCommandAction(ActionTerm):
         self._door_current_positions[env_ids] = 0.0
         self._door_target_positions[env_ids] = 0.0
         
-        # Get current joint position targets for all joints
-        joint_pos_targets = self._elevator.get_joint_position_targets().clone()
-        
-        # Set door joint to closed position
-        joint_pos_targets[env_ids, self._door_joint_id] = 0.0
-        
-        # Apply to elevator articulation
-        self._elevator.set_joint_position_target(joint_pos_targets)
+        # Set door joint to closed position (0.0) for specified environments
+        closed_positions = torch.zeros(len(env_ids), 1, device=self.device)
+        self._elevator.set_joint_position_target(
+            closed_positions,  # Shape: (len(env_ids), 1)
+            joint_ids=self._door_joint_id.item(),  # Single joint ID
+            env_ids=env_ids
+        )
         self._elevator.write_data_to_sim()
