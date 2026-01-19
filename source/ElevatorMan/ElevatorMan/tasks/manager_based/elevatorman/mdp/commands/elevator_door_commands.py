@@ -28,13 +28,13 @@ class ElevatorDoorCommand(CommandTerm):
     The command can be resampled at specified intervals to change the door state.
     
     Outputs:
-        The command buffer has shape (num_envs, 1): `(door_target_position)`.
-        - 0.0 = closed
-        - -0.8 = open (80 cm along chosen axis)
+        The command buffer has shape (num_envs, 1): `(door_target_joint_position)`.
+        - 0.0 = closed (joint position 0.0)
+        - 0.8 = open (joint position 0.8, door opens 80 cm along -X axis)
         - Values in between represent partial opening
     
     Metrics:
-        `door_position_error` is computed between the commanded door position
+        `door_position_error` is computed between the commanded door joint position
         and the current door joint position.
     """
 
@@ -136,7 +136,7 @@ class ElevatorDoorCommand(CommandTerm):
         self._door_auto_close_delay_steps = int(3.0 / env.step_dt)  # Close door after 3 seconds (convert to steps)
         
         # create buffers
-        # -- commands: door target position (0.0 = closed, -0.8 = open)
+        # -- commands: door target joint position (0.0 = closed, 0.8 = open)
         # Initialize to closed position by default
         self.door_command = torch.full(
             (self.num_envs, 1), 
@@ -145,15 +145,14 @@ class ElevatorDoorCommand(CommandTerm):
         )
         
         # -- metrics
-        # Note: Metrics are simplified since we don't track door joint position anymore
-        # The door position is controlled via USD mesh translation in the door actions
+        # Metrics track door joint position (controlled via joint position control in door actions)
         self.metrics["door_position_error"] = torch.zeros(self.num_envs, device=self.device)
         # Store as float (0.0 = closed, 1.0 = open) to allow torch.mean() in reset()
         self.metrics["door_is_open"] = torch.zeros(self.num_envs, device=self.device, dtype=torch.float32)
         
         # Debug print: show initialization
         print(f"\033[94m[DOOR_CMD] Initialized: button-triggered mode, "
-              f"open_position={cfg.door_open_position}, close_position={cfg.door_close_position}, "
+              f"open_position={cfg.door_open_position} (joint), close_position={cfg.door_close_position} (joint), "
               f"button_joints={len(self._button_joint_ids)} (button_G, button_2-6 only, excluding open/close), "
               f"auto_close_delay={3.0}s ({self._door_auto_close_delay_steps} steps)\033[0m")
 
@@ -161,7 +160,7 @@ class ElevatorDoorCommand(CommandTerm):
         msg = "ElevatorDoorCommand:\n"
         msg += f"\tCommand dimension: {tuple(self.command.shape[1:])}\n"
         msg += f"\tResampling time range: {self.cfg.resampling_time_range}\n"
-        msg += f"\tDoor control: USD mesh translation (position delta: 0.0 to -0.8)\n"
+        msg += f"\tDoor control: Joint position control (joint pos: 0.0 to 0.8)\n"
         return msg
 
     """
@@ -172,7 +171,7 @@ class ElevatorDoorCommand(CommandTerm):
     def command(self) -> torch.Tensor:
         """The desired door position command. Shape is (num_envs, 1).
         
-        Values range from 0.0 (closed) to -0.8 (open, 80 cm along chosen axis).
+        Values range from 0.0 (closed) to 0.8 (open, door opens 80 cm along -X axis).
         """
         return self.door_command
 
@@ -247,17 +246,28 @@ class ElevatorDoorCommand(CommandTerm):
 
     def _update_metrics(self):
         """Update metrics based on current door state."""
-        # Note: Door is now controlled via USD mesh translation, not joint positions
-        # Metrics are simplified - we just track the command state, not actual door position
-        # For accurate metrics, we would need to read from USD mesh, which is complex
+        # Get target joint position from command
+        target_pos = self.door_command.squeeze(-1)  # Shape: (num_envs,)
         
-        target_pos = self.door_command.squeeze(-1)
-        # Position error is always 0 since we can't measure actual door position here
-        # The door actions handle the actual mesh translation
-        self.metrics["door_position_error"] = torch.zeros_like(target_pos)
+        # Get actual door joint position from elevator articulation
+        door_joint_name = "door1_joint"
+        try:
+            door_joint_ids, _ = self._elevator.find_joints([door_joint_name])
+            if len(door_joint_ids) > 0:
+                door_joint_id = door_joint_ids[0]
+                current_pos = self._elevator.data.joint_pos[:, door_joint_id].squeeze(-1)  # Shape: (num_envs,)
+                
+                # Calculate position error
+                self.metrics["door_position_error"] = torch.abs(target_pos - current_pos)
+            else:
+                # Joint not found, use zero error
+                self.metrics["door_position_error"] = torch.zeros_like(target_pos)
+        except Exception:
+            # Fallback: use zero error if joint lookup fails
+            self.metrics["door_position_error"] = torch.zeros_like(target_pos)
         
-        # Check if door command is open (based on command, not actual position)
-        # Door is "open" if command is close to open position
+        # Check if door command is open (based on command position)
+        # Door is "open" if command is close to open position (0.8)
         open_threshold = 0.1
         self.metrics["door_is_open"] = (
             torch.abs(target_pos - self.cfg.door_open_position) < open_threshold

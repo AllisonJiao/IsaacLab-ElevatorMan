@@ -10,10 +10,8 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 
-import omni.usd
-from pxr import UsdGeom, Gf
-
 import isaaclab.sim as sim_utils
+from isaaclab.assets import Articulation
 from isaaclab.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:
@@ -23,29 +21,23 @@ if TYPE_CHECKING:
 
 
 class DoorCommandAction(ActionTerm):
-    """Action term that applies door commands from the command manager to the elevator door mesh.
+    """Action term that applies door commands from the command manager to the elevator door joint.
     
     This action term reads the door command from the command manager and applies it directly
-    to the door mesh using USD xformOp:translate. It doesn't require any input actions (action_dim = 0).
+    to the door joint using joint position control. It doesn't require any input actions (action_dim = 0).
     """
 
     cfg: actions_cfg.DoorCommandActionCfg
     """The configuration of the action term."""
-
-    _door_prim_paths: list[str]
-    """List of door prim paths for each environment."""
-
-    _door_translate_attrs: list
-    """List of door translate attributes for each environment."""
-
-    _door_init_translates: list[tuple[float, float, float]]
-    """List of initial door translate positions for each environment."""
     
-    _door_current_deltas: list[float]
-    """List of current door delta positions (relative to initial) for each environment."""
+    _door_joint_id: torch.Tensor
+    """Joint ID of the door joint."""
     
-    _door_target_deltas: list[float]
-    """List of target door delta positions (from commands) for each environment."""
+    _door_current_positions: torch.Tensor
+    """Current door joint positions for each environment."""
+    
+    _door_target_positions: torch.Tensor
+    """Target door joint positions from commands for each environment."""
     
     _door_animation_speed: float
     """Speed of door animation in m/s (how fast the door moves per second)."""
@@ -63,84 +55,25 @@ class DoorCommandAction(ActionTerm):
         # Store command name for lookup
         self._command_name = cfg.command_name
 
-        # Resolve door prim paths for all environments
-        door_prim_path_expr = cfg.door_prim_path
-        if "{ENV_REGEX_NS}" in door_prim_path_expr:
-            # Replace with actual environment namespace pattern
-            env_ns = env.scene.env_regex_ns
-            door_prim_path_expr = door_prim_path_expr.replace("{ENV_REGEX_NS}", env_ns)
+        # Get elevator articulation
+        self._elevator: Articulation = env.scene[cfg.asset_name]
         
-        # Find all matching prim paths for all environments
-        self._door_prim_paths = sim_utils.find_matching_prim_paths(door_prim_path_expr)
-        if len(self._door_prim_paths) != self.num_envs:
+        # Find door joint
+        door_joint_ids, _ = self._elevator.find_joints([cfg.door_joint_name])
+        if len(door_joint_ids) == 0:
             raise RuntimeError(
-                f"Found {len(self._door_prim_paths)} door prim paths for {self.num_envs} environments. "
-                f"Expected {self.num_envs}. Prim path expression: {door_prim_path_expr}"
+                f"Door joint '{cfg.door_joint_name}' not found in elevator articulation '{cfg.asset_name}'."
             )
+        self._door_joint_id = torch.as_tensor(door_joint_ids[0], device=self.device, dtype=torch.long)
         
-        # Get USD stage
-        stage = omni.usd.get_context().get_stage()
-        
-        # Initialize door translate attributes and cache initial positions
-        self._door_translate_attrs = []
-        self._door_init_translates = []
-        
-        for env_id, prim_path in enumerate(self._door_prim_paths):
-            door_prim = stage.GetPrimAtPath(prim_path)
-            
-            if not door_prim.IsValid():
-                raise RuntimeError(f"Door prim not found at: {prim_path} for environment {env_id}")
-            
-            # Directly access translate attribute (avoid XformCommonAPI incompatibility)
-            translate_attr = door_prim.GetAttribute("xformOp:translate")
-            
-            # If translate attribute doesn't exist, try to get/create it via Xformable
-            if not translate_attr or not translate_attr.IsValid():
-                # Check for different possible translate op names
-                for op_name in ["xformOp:translate", "xformOp:translation", "xformOp:translateX"]:
-                    attr = door_prim.GetAttribute(op_name)
-                    if attr and attr.IsValid():
-                        translate_attr = attr
-                        break
-                
-                # If still not found, create one using Xformable
-                if not translate_attr or not translate_attr.IsValid():
-                    door_xformable = UsdGeom.Xformable(door_prim)  # type: ignore
-                    translate_op = door_xformable.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble)  # type: ignore
-                    translate_attr = translate_op.GetAttr()
-            
-            self._door_translate_attrs.append(translate_attr)
-            
-            # Cache initial transform
-            # Note: xformOp:translate is relative to the prim's base position (set by init_state.pos)
-            # We only care about X and Y for door animation (door opens along X axis)
-            # Z position is controlled by init_state.pos in the scene config, so we set Z to 0.0 here
-            init_t = translate_attr.Get()
-            if init_t is None:
-                init_t = (0.0, 0.0, 0.0)
-            else:
-                # Convert to tuple if it's a Vec3d
-                if hasattr(init_t, '__iter__') and len(init_t) == 3:
-                    init_t = tuple(init_t)
-                else:
-                    init_t = (0.0, 0.0, 0.0)
-            
-            # Ensure Z component is 0.0 since absolute Z is controlled by init_state.pos
-            # Only X and Y are preserved from the USD file (in case there's an offset)
-            init_t = (init_t[0], init_t[1], 0.0)
-            
-            # Set the translate attribute to ensure it matches our expected initial state
-            translate_attr.Set(init_t)
-            
-            self._door_init_translates.append(init_t)
-        
-        # Initialize door animation state
-        self._door_current_deltas = [0.0] * self.num_envs  # Current delta from initial position
-        self._door_target_deltas = [0.0] * self.num_envs   # Target delta from command
+        # Initialize door position tracking
+        self._door_current_positions = torch.zeros(self.num_envs, device=self.device)
+        self._door_target_positions = torch.zeros(self.num_envs, device=self.device)
         self._door_animation_speed = 0.8  # m/s - door moves 0.8 m/s (80 cm/s)
         
         # Debug print: show initialization
-        print(f"\033[94m[DOOR_ACTION] Initialized {self.num_envs} doors with animation speed={self._door_animation_speed} m/s\033[0m")
+        print(f"\033[94m[DOOR_ACTION] Initialized door joint '{cfg.door_joint_name}' (ID: {self._door_joint_id.item()}) "
+              f"for {self.num_envs} environments with animation speed={self._door_animation_speed} m/s\033[0m")
 
     @property
     def action_dim(self) -> int:
@@ -163,66 +96,73 @@ class DoorCommandAction(ActionTerm):
         pass
 
     def apply_actions(self):
-        """Apply the door command to the elevator door mesh using USD translate with smooth animation."""
+        """Apply the door command to the elevator door joint with smooth animation."""
         # Get the door command from the command manager
         door_command = self._env.command_manager.get_command(self._command_name)
         
         # door_command shape is (num_envs, 1)
-        # Each value represents the door delta position (e.g., -0.8 for open, 0.0 for closed)
+        # Each value represents the door joint target position (e.g., 0.8 for open, 0.0 for closed)
         
         # Get simulation timestep for animation
         dt = self._env.step_dt
         
-        # Convert to CPU numpy for processing
-        door_deltas = door_command.cpu().squeeze(-1).numpy()
+        # Squeeze to (num_envs,) shape
+        door_targets = door_command.squeeze(-1)  # Shape: (num_envs,)
         
-        # Apply smooth door animation for each environment
-        for env_id in range(self.num_envs):
-            target_delta = float(door_deltas[env_id])
-            current_delta = self._door_current_deltas[env_id]
-            
-            # Update target if command changed
-            if abs(target_delta - self._door_target_deltas[env_id]) > 0.001:
-                self._door_target_deltas[env_id] = target_delta
-            
-            # Calculate movement step size based on animation speed
-            max_step_size = self._door_animation_speed * dt  # Maximum movement per step
-            
-            # Interpolate towards target position
-            delta_to_target = target_delta - current_delta
-            if abs(delta_to_target) > 0.001:  # Only animate if not already at target
-                # Move towards target, but limit step size for smooth animation
-                if abs(delta_to_target) <= max_step_size:
-                    # Close enough, snap to target
-                    new_delta = target_delta
-                else:
-                    # Move towards target at animation speed
-                    step = max_step_size if delta_to_target > 0 else -max_step_size
-                    new_delta = current_delta + step
-                
-                self._door_current_deltas[env_id] = new_delta
-            else:
-                # Already at target
-                new_delta = current_delta
-            
-            # Apply to USD mesh: initial position + current delta along X axis
-            init_t = self._door_init_translates[env_id]
-            new_t = (init_t[0] + new_delta, init_t[1], init_t[2])
-            self._door_translate_attrs[env_id].Set(new_t)
+        # Update target positions
+        self._door_target_positions = door_targets.clone()
+        
+        # Get current door joint positions
+        self._door_current_positions = self._elevator.data.joint_pos[:, self._door_joint_id].squeeze(-1)
+        
+        # Calculate movement step size based on animation speed
+        # Joint limits are 0.0 to 0.8 (80 cm), so 0.8 m max travel
+        max_step_size = self._door_animation_speed * dt / 0.8  # Normalize by joint range (0.8 m)
+        
+        # Interpolate towards target position for smooth animation
+        delta_to_target = self._door_target_positions - self._door_current_positions
+        
+        # Apply smooth animation
+        abs_delta = torch.abs(delta_to_target)
+        step_size = torch.minimum(abs_delta, torch.full_like(abs_delta, max_step_size))
+        step = torch.sign(delta_to_target) * step_size
+        
+        # Only move if delta is significant (> 0.001)
+        move_mask = abs_delta > 0.001
+        new_positions = torch.where(
+            move_mask,
+            self._door_current_positions + step,
+            self._door_current_positions
+        )
+        
+        # Clamp to joint limits
+        new_positions = torch.clamp(new_positions, 0.0, 0.8)
+        
+        # Get current joint position targets for all joints
+        joint_pos_targets = self._elevator.get_joint_position_targets().clone()
+        
+        # Update only the door joint
+        joint_pos_targets[:, self._door_joint_id] = new_positions.unsqueeze(-1)
+        
+        # Apply to elevator articulation
+        self._elevator.set_joint_position_target(joint_pos_targets)
+        self._elevator.write_data_to_sim()
 
     def reset(self, env_ids: torch.Tensor | None = None):
         """Reset the door to initial position for specified environments."""
         if env_ids is None:
             env_ids = torch.arange(self.num_envs, device=self.device)
         
-        # Reset door positions to initial state
-        env_ids_list = env_ids.cpu().tolist()
-        for env_id in env_ids_list:
-            # Reset animation state
-            self._door_current_deltas[env_id] = 0.0
-            self._door_target_deltas[env_id] = 0.0
-            
-            # Reset door position to initial
-            init_t = self._door_init_translates[env_id]
-            self._door_translate_attrs[env_id].Set(init_t)
-
+        # Reset door positions to closed (0.0)
+        self._door_current_positions[env_ids] = 0.0
+        self._door_target_positions[env_ids] = 0.0
+        
+        # Get current joint position targets for all joints
+        joint_pos_targets = self._elevator.get_joint_position_targets().clone()
+        
+        # Set door joint to closed position
+        joint_pos_targets[env_ids, self._door_joint_id] = 0.0
+        
+        # Apply to elevator articulation
+        self._elevator.set_joint_position_target(joint_pos_targets)
+        self._elevator.write_data_to_sim()

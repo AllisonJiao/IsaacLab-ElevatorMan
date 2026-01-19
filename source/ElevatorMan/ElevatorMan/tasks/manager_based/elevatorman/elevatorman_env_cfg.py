@@ -59,8 +59,8 @@ class CommandsCfg:
         resampling_time_range=(999.0, 999.0),  # Disable time-based resampling (use button presses instead)
         debug_vis=False,
         ranges=_door_ranges,  # Not used in button-triggered mode, but kept for compatibility
-        door_open_position=-0.8,  # 80 cm along chosen axis (translation delta)
-        door_close_position=0.0,
+        door_open_position=0.8,  # Joint position 0.8 = open (door opens 80 cm along -X axis)
+        door_close_position=0.0,  # Joint position 0.0 = closed
     )
 
 
@@ -112,10 +112,10 @@ class ActionsCfg:
     arm_action: mdp.JointPositionActionCfg = MISSING
     gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
     
-    # Door command action - applies door commands from command manager to door mesh
+    # Door command action - applies door commands from command manager to door joint
     door_action: elevatorman_mdp.DoorCommandActionCfg = elevatorman_mdp.DoorCommandActionCfg(
-        asset_name="elevator",  # Required by base class but not used for door mesh control
-        door_prim_path="{ENV_REGEX_NS}/Door1",  # Path to door mesh (supports multi-env)
+        asset_name="elevator",  # Required: elevator articulation containing door1_joint
+        door_joint_name="door1_joint",  # Joint name for door control
         command_name="elevator_door",
     )
 

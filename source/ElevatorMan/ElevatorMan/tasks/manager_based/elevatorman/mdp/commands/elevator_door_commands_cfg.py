@@ -26,13 +26,13 @@ class ElevatorDoorCommandCfg(CommandTermCfg):
     """The class type for the command term."""
 
     elevator_name: Union[str, type(MISSING)] = MISSING  # type: ignore
-    """Name of the elevator articulation in the scene (not used for door mesh control, but required)."""
+    """Name of the elevator articulation in the scene (required for door joint control)."""
 
-    door_open_position: float = -0.8
-    """Target position for door open state. Defaults to -0.8 (80 cm along chosen axis)."""
+    door_open_position: float = 0.8
+    """Target joint position for door open state. Defaults to 0.8 (matches URDF limit, door opens 80 cm)."""
 
     door_close_position: float = 0.0
-    """Target position for door close state. Defaults to 0.0."""
+    """Target joint position for door close state. Defaults to 0.0."""
 
     @configclass
     class Ranges:

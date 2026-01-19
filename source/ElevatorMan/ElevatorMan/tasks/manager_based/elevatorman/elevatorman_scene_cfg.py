@@ -15,7 +15,7 @@ from isaaclab.utils import configclass
 
 from cfg.elevator import ELEVATOR_CFG
 
-# Get door USD asset paths
+# Get screen USD asset path
 # Use absolute paths calculated from config location (like cfg/elevator.py)
 # File is at: source/ElevatorMan/ElevatorMan/tasks/manager_based/elevatorman/elevatorman_scene_cfg.py
 # Walk up directory tree to find project root (where assets/ directory exists)
@@ -30,7 +30,6 @@ for _ in range(10):
     if parent == _PROJECT_ROOT:  # Reached filesystem root
         break
     _PROJECT_ROOT = parent
-DOOR1_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "door1.usdc")
 
 SCREEN_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "screens", "screen_g_up.usdc")
 
@@ -80,12 +79,6 @@ class ElevatormanSceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=(-1.86, 0.20, 2.00)),
     )
 
-    # Door1 - animated door (moving, controlled via USD mesh translation)
-    door1 = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Door1",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=DOOR1_USD_PATH
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
-    )
+    # Door1 is part of the elevator URDF (controlled via door1_joint - prismatic joint)
+    # door1_joint: axis -X, limits 0.0 (closed) to 0.8 (open)
 
