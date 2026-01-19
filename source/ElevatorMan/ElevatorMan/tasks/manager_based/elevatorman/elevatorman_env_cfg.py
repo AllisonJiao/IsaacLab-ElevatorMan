@@ -11,6 +11,7 @@ from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
+from isaaclab.devices.gamepad import Se3GamepadCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.actions.rmpflow_actions_cfg import RMPFlowActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -253,6 +254,11 @@ class RmpFlowAgibotElevatormanEnvCfg(ElevatormanEnvCfg):
                     sim_device=self.sim.device,
                 ),
                 "spacemouse": Se3SpaceMouseCfg(
+                    pos_sensitivity=0.05,
+                    rot_sensitivity=0.05,
+                    sim_device=self.sim.device,
+                ),
+                "gamepad": Se3GamepadCfg(
                     pos_sensitivity=0.05,
                     rot_sensitivity=0.05,
                     sim_device=self.sim.device,
