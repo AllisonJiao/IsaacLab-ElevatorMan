@@ -56,7 +56,8 @@ ELEVATOR_CFG = ArticulationCfg(
             "button_2_1_joint": 0.0,
             "button_3_0_joint": 0.0,
             "button_3_1_joint": 0.0,
-            # door2_joint removed - doors are now standalone USD files
+            "door1_joint": 0.0,  # Door1 joint: 0.0 = closed, 0.8 = open (prismatic, axis -X)
+            "door2_joint": 0.0,  # Door2 joint: prismatic joint (static by default)
         },
         pos=(0.0, 0.0, 0.0),  # init pos of the articulation for teleop
     ),
@@ -69,7 +70,21 @@ ELEVATOR_CFG = ArticulationCfg(
             stiffness=50.0,
             damping=10.0,
         ),
-            # Elevator doors removed - doors are now standalone USD files
-            # Door animation is handled via USD Xform control, not joints
+        # Elevator door1 (prismatic joint, controlled via joint position)
+        "elevator_door1": ImplicitActuatorCfg(
+            joint_names_expr=["door1_joint"],
+            effort_limit_sim=400.0,
+            velocity_limit_sim=0.2,  # Match URDF velocity limit
+            stiffness=100.0,
+            damping=20.0,
+        ),
+        # Elevator door2 (prismatic joint, static/not animated by default)
+        "elevator_door2": ImplicitActuatorCfg(
+            joint_names_expr=["door2_joint"],
+            effort_limit_sim=400.0,
+            velocity_limit_sim=0.2,
+            stiffness=100.0,
+            damping=20.0,
+        ),
     },
 )
