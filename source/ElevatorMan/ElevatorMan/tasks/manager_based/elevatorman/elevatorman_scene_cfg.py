@@ -31,7 +31,6 @@ for _ in range(10):
         break
     _PROJECT_ROOT = parent
 DOOR1_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "door1.usdc")
-DOOR2_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "door2.usdc")
 
 SCREEN_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "screens", "screen_g_up.usdc")
 
@@ -86,15 +85,6 @@ class ElevatormanSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Door1",
         spawn=sim_utils.UsdFileCfg(
             usd_path=DOOR1_USD_PATH
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
-    )
-
-    # Door2 - static door (not moving, for reference/display)
-    door2 = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Door2",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=DOOR2_USD_PATH
         ),
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
     )
