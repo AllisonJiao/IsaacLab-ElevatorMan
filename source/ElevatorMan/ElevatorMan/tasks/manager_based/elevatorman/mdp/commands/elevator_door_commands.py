@@ -133,7 +133,7 @@ class ElevatorDoorCommand(CommandTerm):
         
         # Automatic door closing: track when door was opened and close it after delay
         self._door_open_step = torch.full((self.num_envs,), -1, device=self.device, dtype=torch.long)  # Step when door was opened (-1 = not open)
-        self._door_auto_close_delay_steps = int(3.0 / env.step_dt)  # Close door after 3 seconds (convert to steps)
+        self._door_auto_close_delay_steps = int(10.0 / env.step_dt)  # Close door after 10 seconds (convert to steps)
         
         # create buffers
         # -- commands: door target joint position (0.0 = closed, 0.8 = open)
@@ -154,7 +154,7 @@ class ElevatorDoorCommand(CommandTerm):
         print(f"\033[94m[DOOR_CMD] Initialized: button-triggered mode, "
               f"open_position={cfg.door_open_position} (joint), close_position={cfg.door_close_position} (joint), "
               f"button_joints={len(self._button_joint_ids)} (button_G, button_2-6 only, excluding open/close), "
-              f"auto_close_delay={3.0}s ({self._door_auto_close_delay_steps} steps)\033[0m")
+              f"auto_close_delay={10.0}s ({self._door_auto_close_delay_steps} steps)\033[0m")
 
     def __str__(self) -> str:
         msg = "ElevatorDoorCommand:\n"
