@@ -30,7 +30,7 @@ class ElevatorDoorCommand(CommandTerm):
     Outputs:
         The command buffer has shape (num_envs, 1): `(door_target_position)`.
         - 0.0 = closed
-        - -0.5 = open (50 cm along chosen axis)
+        - -0.8 = open (80 cm along chosen axis)
         - Values in between represent partial opening
     
     Metrics:
@@ -136,7 +136,7 @@ class ElevatorDoorCommand(CommandTerm):
         self._door_auto_close_delay_steps = int(3.0 / env.step_dt)  # Close door after 3 seconds (convert to steps)
         
         # create buffers
-        # -- commands: door target position (0.0 = closed, -0.5 = open)
+        # -- commands: door target position (0.0 = closed, -0.8 = open)
         # Initialize to closed position by default
         self.door_command = torch.full(
             (self.num_envs, 1), 
@@ -161,7 +161,7 @@ class ElevatorDoorCommand(CommandTerm):
         msg = "ElevatorDoorCommand:\n"
         msg += f"\tCommand dimension: {tuple(self.command.shape[1:])}\n"
         msg += f"\tResampling time range: {self.cfg.resampling_time_range}\n"
-        msg += f"\tDoor control: USD mesh translation (position delta: 0.0 to -0.5)\n"
+        msg += f"\tDoor control: USD mesh translation (position delta: 0.0 to -0.8)\n"
         return msg
 
     """
@@ -172,7 +172,7 @@ class ElevatorDoorCommand(CommandTerm):
     def command(self) -> torch.Tensor:
         """The desired door position command. Shape is (num_envs, 1).
         
-        Values range from 0.0 (closed) to -0.5 (open, 50 cm along chosen axis).
+        Values range from 0.0 (closed) to -0.8 (open, 50 cm along chosen axis).
         """
         return self.door_command
 

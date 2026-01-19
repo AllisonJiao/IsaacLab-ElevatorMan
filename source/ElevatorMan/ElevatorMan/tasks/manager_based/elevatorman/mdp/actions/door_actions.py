@@ -137,7 +137,7 @@ class DoorCommandAction(ActionTerm):
         # Initialize door animation state
         self._door_current_deltas = [0.0] * self.num_envs  # Current delta from initial position
         self._door_target_deltas = [0.0] * self.num_envs   # Target delta from command
-        self._door_animation_speed = 0.5  # m/s - door moves 0.5 m/s (50 cm/s)
+        self._door_animation_speed = 0.8  # m/s - door moves 0.8 m/s (80 cm/s)
         
         # Debug print: show initialization
         print(f"\033[94m[DOOR_ACTION] Initialized {self.num_envs} doors with animation speed={self._door_animation_speed} m/s\033[0m")
@@ -168,7 +168,7 @@ class DoorCommandAction(ActionTerm):
         door_command = self._env.command_manager.get_command(self._command_name)
         
         # door_command shape is (num_envs, 1)
-        # Each value represents the door delta position (e.g., -0.5 for open, 0.0 for closed)
+        # Each value represents the door delta position (e.g., -0.8 for open, 0.0 for closed)
         
         # Get simulation timestep for animation
         dt = self._env.step_dt
