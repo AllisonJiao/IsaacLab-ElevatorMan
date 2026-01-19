@@ -69,7 +69,7 @@ class DoorCommandAction(ActionTerm):
         # Initialize door position tracking
         self._door_current_positions = torch.zeros(self.num_envs, device=self.device)
         self._door_target_positions = torch.zeros(self.num_envs, device=self.device)
-        self._door_animation_speed = 0.8  # m/s - door moves 0.8 m/s (80 cm/s)
+        self._door_animation_speed = 1.6  # m/s - door moves 1.6 m/s (faster for reliable closing, especially with recording)
         
         # Debug print: show initialization
         print(f"\033[94m[DOOR_ACTION] Initialized door joint '{cfg.door_joint_name}' (ID: {self._door_joint_id.item()}) "
@@ -108,6 +108,18 @@ class DoorCommandAction(ActionTerm):
         
         # Squeeze to (num_envs,) shape
         door_targets = door_command.squeeze(-1)  # Shape: (num_envs,)
+        
+        # Check if target changed significantly (for debugging)
+        old_targets = self._door_target_positions.clone()
+        for env_id in range(self.num_envs):
+            old_target = old_targets[env_id].item()
+            new_target = door_targets[env_id].item()
+            if abs(old_target - new_target) > 0.01:
+                # Target changed significantly
+                if new_target < 0.1 and old_target > 0.7:  # Closing from open
+                    print(f"\033[95m[DOOR_ACTION] Env {env_id}: Command changed to CLOSE ({old_target:.3f} -> {new_target:.3f})\033[0m")
+                elif new_target > 0.7 and old_target < 0.1:  # Opening from closed
+                    print(f"\033[95m[DOOR_ACTION] Env {env_id}: Command changed to OPEN ({old_target:.3f} -> {new_target:.3f})\033[0m")
         
         # Update target positions
         self._door_target_positions = door_targets.clone()
