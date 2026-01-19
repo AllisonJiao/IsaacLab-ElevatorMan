@@ -59,7 +59,7 @@ class CommandsCfg:
         resampling_time_range=(999.0, 999.0),  # Disable time-based resampling (use button presses instead)
         debug_vis=False,
         ranges=_door_ranges,  # Not used in button-triggered mode, but kept for compatibility
-        door_open_position=-0.5,  # 50 cm along chosen axis (translation delta)
+        door_open_position=-0.8,  # 80 cm along chosen axis (translation delta)
         door_close_position=0.0,
     )
 

@@ -172,7 +172,7 @@ class ElevatorDoorCommand(CommandTerm):
     def command(self) -> torch.Tensor:
         """The desired door position command. Shape is (num_envs, 1).
         
-        Values range from 0.0 (closed) to -0.8 (open, 50 cm along chosen axis).
+        Values range from 0.0 (closed) to -0.8 (open, 80 cm along chosen axis).
         """
         return self.door_command
 
