@@ -36,10 +36,6 @@ from isaaclab.utils import configclass
 from isaaclab_assets.robots.agibot import AGIBOT_A2D_CFG  # isort: skip
 from cfg.elevator import ELEVATOR_CFG
 
-# USD access for direct mesh control
-import omni.usd
-from pxr import UsdGeom, Gf, Usd
-
 # Get door USD asset paths (both doors are now controlled via joints from URDF)
 # Use absolute paths calculated from script location (like cfg/elevator.py)
 _CUR_DIR = os.path.dirname(os.path.abspath(__file__))
