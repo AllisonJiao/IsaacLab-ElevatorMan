@@ -76,7 +76,7 @@ class ElevatormanSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.UsdFileCfg(
             usd_path=SCREEN_USD_PATH
         ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(-1.86, 0.20, 2.00)),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(-1.86, 0.30, 2.00)),
     )
 
     # Door1 is part of the elevator URDF (controlled via door1_joint - prismatic joint)
