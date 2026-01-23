@@ -125,7 +125,10 @@ class DoorCommandAction(ActionTerm):
         self._door_target_positions = door_targets.clone()
         
         # Get current door joint positions
-        self._door_current_positions = self._elevator.data.joint_pos[:, self._door_joint_id].squeeze(-1)
+        # Convert joint_id to int for indexing
+        door_joint_id_int = int(self._door_joint_id.item())
+        joint_pos_data = self._elevator.data.joint_pos  # Shape: (num_envs, num_joints)
+        self._door_current_positions = joint_pos_data[:, door_joint_id_int]
         
         # Calculate movement step size based on animation speed
         # Joint limits are 0.0 to 0.8 (80 cm), so 0.8 m max travel
@@ -151,9 +154,10 @@ class DoorCommandAction(ActionTerm):
         new_positions = torch.clamp(new_positions, 0.0, 0.8)
         
         # Set door joint position target directly (set_joint_position_target can target specific joints)
+        door_joint_id_int = int(self._door_joint_id.item() if isinstance(self._door_joint_id, torch.Tensor) else self._door_joint_id)
         self._elevator.set_joint_position_target(
             new_positions.unsqueeze(-1),  # Shape: (num_envs, 1)
-            joint_ids=self._door_joint_id.item()  # Single joint ID
+            joint_ids=door_joint_id_int  # Single joint ID
         )
         self._elevator.write_data_to_sim()
 
@@ -162,15 +166,25 @@ class DoorCommandAction(ActionTerm):
         if env_ids is None:
             env_ids = torch.arange(self.num_envs, device=self.device)
         
+        # Ensure env_ids is a 1D tensor (handle scalar case)
+        if isinstance(env_ids, torch.Tensor):
+            if env_ids.dim() == 0:  # 0-dimensional tensor (scalar)
+                env_ids = env_ids.unsqueeze(0)
+        else:
+            env_ids = torch.as_tensor(env_ids, device=self.device)
+            if env_ids.dim() == 0:
+                env_ids = env_ids.unsqueeze(0)
+        
         # Reset door positions to closed (0.0)
         self._door_current_positions[env_ids] = 0.0
         self._door_target_positions[env_ids] = 0.0
         
         # Set door joint to closed position (0.0) for specified environments
         closed_positions = torch.zeros(len(env_ids), 1, device=self.device)
+        door_joint_id_int = int(self._door_joint_id.item())
         self._elevator.set_joint_position_target(
             closed_positions,  # Shape: (len(env_ids), 1)
-            joint_ids=self._door_joint_id.item(),  # Single joint ID
+            joint_ids=door_joint_id_int,  # Single joint ID
             env_ids=env_ids
         )
         self._elevator.write_data_to_sim()
