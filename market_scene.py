@@ -75,7 +75,7 @@ class MarketSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.UsdFileCfg(
             usd_path=SMPL_USD_PATH
         ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(5.0, 0.0, 1.6)),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(10.0, 0.0, 0.0)),
     )
 
 
