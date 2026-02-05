@@ -48,11 +48,11 @@ DOME_LIGHT_PATH = os.path.join(_PROJECT_ROOT, "assets", "market", "textures", "H
 @configclass
 class MarketSceneCfg(InteractiveSceneCfg):
 
-    # ground = AssetBaseCfg(
-    #     prim_path="/World/defaultGroundPlane",
-    #     spawn=sim_utils.GroundPlaneCfg(),
-    #     init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
-    # )
+    ground = AssetBaseCfg(
+        prim_path="/World/defaultGroundPlane",
+        spawn=sim_utils.GroundPlaneCfg(),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
+    )
 
     dome_light = AssetBaseCfg(
         prim_path="/World/Light",
@@ -65,7 +65,7 @@ class MarketSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.UsdFileCfg(
             usd_path=MARKET_USD_PATH
         ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 1.6)),
     )
 
 
