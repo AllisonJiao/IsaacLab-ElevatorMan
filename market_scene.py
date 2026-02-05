@@ -44,6 +44,7 @@ _PROJECT_ROOT = _CUR_DIR  # market_scene.py is in the project root
 
 MARKET_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "market", "market_flattened.usd")
 DOME_LIGHT_PATH = os.path.join(_PROJECT_ROOT, "assets", "market", "textures", "HDRI.hdr")
+SMPL_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "SMPL_sample_animations", "flattened_SMPL.usd")
 
 @configclass
 class MarketSceneCfg(InteractiveSceneCfg):
@@ -66,6 +67,15 @@ class MarketSceneCfg(InteractiveSceneCfg):
             usd_path=MARKET_USD_PATH
         ),
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 1.6)),
+    )
+
+    # smpl
+    smpl = AssetBaseCfg(
+        prim_path="/World/SMPL",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=SMPL_USD_PATH
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(5.0, 0.0, 1.6)),
     )
 
 
