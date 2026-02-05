@@ -43,6 +43,7 @@ _CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = _CUR_DIR  # market_scene.py is in the project root
 
 MARKET_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "market", "market_flattened.usd")
+DOME_LIGHT_PATH = os.path.join(_PROJECT_ROOT, "assets", "market", "textures", "HDRI.hdr")
 
 @configclass
 class MarketSceneCfg(InteractiveSceneCfg):
@@ -55,7 +56,7 @@ class MarketSceneCfg(InteractiveSceneCfg):
 
     dome_light = AssetBaseCfg(
         prim_path="/World/Light",
-        spawn=sim_utils.DomeLightCfg(intensity=3000.0),
+        spawn=sim_utils.DomeLightCfg(intensity=3000.0, texture_file=DOME_LIGHT_PATH),
     )
 
     # market
