@@ -40,6 +40,9 @@ from isaaclab.assets import AssetBaseCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.utils import configclass
 
+from isaaclab_assets.robots.agibot import AGIBOT_A2D_CFG  # isort: skip
+from cfg.elevator import ELEVATOR_CFG
+
 _CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = _CUR_DIR  # market_scene.py is in the project root
 
@@ -84,17 +87,17 @@ class MarketSceneCfg(InteractiveSceneCfg):
     )
 
     # robot
-    # agibot: ArticulationCfg = AGIBOT_A2D_CFG.replace(
-    #     prim_path="/World/Agibot",
-    #     spawn=AGIBOT_A2D_CFG.spawn.replace(
-    #         scale=(1.2, 1.2, 1.2),
-    #     ),
-    #     init_state=ArticulationCfg.InitialStateCfg(
-    #         joint_pos=AGIBOT_A2D_CFG.init_state.joint_pos,  # preserve original joint positions
-    #         pos=(0.0, 2.0, 0.0),
-    #         rot=(math.sqrt(0.5), 0.0, 0.0, -math.sqrt(0.5)), # (w,x,y,z)
-    #     ),
-    # )
+    agibot: ArticulationCfg = AGIBOT_A2D_CFG.replace(
+        prim_path="/World/Agibot",
+        spawn=AGIBOT_A2D_CFG.spawn.replace(
+            scale=(1.2, 1.2, 1.2),
+        ),
+        init_state=ArticulationCfg.InitialStateCfg(
+            joint_pos=AGIBOT_A2D_CFG.init_state.joint_pos,  # preserve original joint positions
+            pos=(0.0, 2.0, 1.3),
+            rot=(math.sqrt(0.5), 0.0, 0.0, -math.sqrt(0.5)), # (w,x,y,z)
+        ),
+    )
 
     # smpl
     smpl = AssetBaseCfg(
