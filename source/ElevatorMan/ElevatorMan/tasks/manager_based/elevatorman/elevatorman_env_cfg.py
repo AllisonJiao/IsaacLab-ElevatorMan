@@ -92,7 +92,19 @@ if not (os.path.exists(os.path.join(_PROJECT_ROOT, "isaaclab.sh")) or
 
 G2_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "G2.usd")
 
+# Verify G2 USD file exists
+if not os.path.exists(G2_USD_PATH):
+    import warnings
+    warnings.warn(
+        f"G2 USD file not found at: {G2_USD_PATH}. "
+        "Please ensure the file exists. The robot will not work correctly without it.",
+        UserWarning
+    )
+
 # G2 Robot Configuration (similar structure to AGIBOT_A2D_CFG)
+# Note: If G2.usd has a different structure, you may need to specify:
+# - articulation_root_prim_path: if the articulation root is not at the USD root
+# - Different joint names in actuators and init_state
 AGIBOT_G2_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=G2_USD_PATH,
@@ -107,6 +119,9 @@ AGIBOT_G2_CFG = ArticulationCfg(
             solver_velocity_iteration_count=0,
         ),
     ),
+    # If G2.usd has the articulation root at a different path (e.g., "/Robot" or "/base_link"),
+    # uncomment and set the path below:
+    # articulation_root_prim_path="/Robot",  # Adjust based on your USD file structure
     init_state=ArticulationCfg.InitialStateCfg(
         joint_pos={".*": 0.0},  # Default all joints to 0, can be customized for G2
     ),
