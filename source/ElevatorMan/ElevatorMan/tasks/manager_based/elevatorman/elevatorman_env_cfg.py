@@ -76,7 +76,19 @@ from isaaclab_assets.robots.agibot import AGIBOT_A2D_CFG  # isort: skip
 from isaaclab.controllers.config.rmp_flow import AGIBOT_RIGHT_ARM_RMPFLOW_CFG  # isort: skip
 
 _CUR_DIR = os.path.dirname(os.path.abspath(__file__))
-_PROJECT_ROOT = _CUR_DIR  # market_scene.py is in the project root
+# Navigate up from: source/ElevatorMan/ElevatorMan/tasks/manager_based/elevatorman/
+# to project root (6 levels up: elevatorman -> manager_based -> tasks -> ElevatorMan -> ElevatorMan -> source -> root)
+_PROJECT_ROOT = os.path.abspath(os.path.join(_CUR_DIR, "..", "..", "..", "..", "..", ".."))
+
+# Verify we're at the project root by checking for isaaclab.sh or README.md
+if not (os.path.exists(os.path.join(_PROJECT_ROOT, "isaaclab.sh")) or 
+        os.path.exists(os.path.join(_PROJECT_ROOT, "README.md"))):
+    # If not found, try one more level up (in case structure is different)
+    _PROJECT_ROOT = os.path.abspath(os.path.join(_PROJECT_ROOT, ".."))
+    if not (os.path.exists(os.path.join(_PROJECT_ROOT, "isaaclab.sh")) or 
+            os.path.exists(os.path.join(_PROJECT_ROOT, "README.md"))):
+        # Fallback: use the calculated path anyway
+        pass
 
 G2_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "G2.usd")
 
