@@ -3,10 +3,31 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import argparse
+
+from isaaclab.app import AppLauncher
+
+# add argparse arguments
+parser = argparse.ArgumentParser(description="Elevatorman scene configuration.")
+parser.add_argument("--robot", type=str, default="G1", help="Type of robot to use.")
+
+# append AppLauncher cli args
+AppLauncher.add_app_launcher_args(parser)
+# parse the arguments
+args_cli = parser.parse_args()
+
+# launch omniverse app
+app_launcher = AppLauncher(args_cli)
+simulation_app = app_launcher.app
+
+"""Rest everything follows."""
+
 import math
 import os
 from dataclasses import MISSING
 
+import isaaclab.sim as sim_utils
+from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
@@ -33,6 +54,43 @@ from . import mdp as elevatorman_mdp
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 from isaaclab_assets.robots.agibot import AGIBOT_A2D_CFG  # isort: skip
 from isaaclab.controllers.config.rmp_flow import AGIBOT_RIGHT_ARM_RMPFLOW_CFG  # isort: skip
+
+_CUR_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = _CUR_DIR  # market_scene.py is in the project root
+
+G2_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "G2.usd")
+
+# G2 Robot Configuration (similar structure to AGIBOT_A2D_CFG)
+AGIBOT_G2_CFG = ArticulationCfg(
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=G2_USD_PATH,
+        activate_contact_sensors=True,
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            disable_gravity=False,
+            max_depenetration_velocity=5.0,
+        ),
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+            enabled_self_collisions=False,
+            solver_position_iteration_count=8,
+            solver_velocity_iteration_count=0,
+        ),
+    ),
+    init_state=ArticulationCfg.InitialStateCfg(
+        joint_pos={".*": 0.0},  # Default all joints to 0, can be customized for G2
+    ),
+    actuators={
+        # Use similar actuator structure as AGIBOT_A2D_CFG
+        # Can be customized based on G2's actual joint structure
+        "body": ImplicitActuatorCfg(
+            joint_names_expr=[".*"],  # Match all joints, customize as needed
+            effort_limit_sim=10000.0,
+            velocity_limit_sim=2.61,
+            stiffness=10000000.0,
+            damping=200.0,
+        ),
+    },
+    soft_joint_pos_limit_factor=1.0,
+)
 
 ##
 # Command settings
@@ -173,13 +231,29 @@ class RmpFlowAgibotElevatormanEnvCfg(ElevatormanEnvCfg):
 
         self.events = EventCfgElevatorman()
 
-        # Set Agibot as robot
+        # Select robot type based on command line argument
+        robot_type = args_cli.robot.upper()  # Normalize to uppercase for comparison
+        
+        if robot_type == "G1":
+            # Use AGIBOT_A2D (G1) robot
+            robot_cfg = AGIBOT_A2D_CFG
+            # Preserve original joint positions for G1
+            joint_pos = AGIBOT_A2D_CFG.init_state.joint_pos
+        elif robot_type == "G2":
+            # Use G2 robot
+            robot_cfg = AGIBOT_G2_CFG
+            # Use default joint positions for G2 (can be customized)
+            joint_pos = AGIBOT_G2_CFG.init_state.joint_pos
+        else:
+            raise ValueError(f"Unsupported robot type: {args_cli.robot}. Supported types: G1, G2")
+
+        # Set robot configuration
         # Use position and rotation from animate_elevator_scene.py
         # Note: With 90° rotation, robot parts extend differently, so z-height may need adjustment
-        self.scene.robot = AGIBOT_A2D_CFG.replace(
+        self.scene.robot = robot_cfg.replace(
             prim_path="{ENV_REGEX_NS}/Robot",
             init_state=ArticulationCfg.InitialStateCfg(
-                joint_pos=AGIBOT_A2D_CFG.init_state.joint_pos,  # preserve original joint positions
+                joint_pos=joint_pos,  # preserve original joint positions
                 pos=(-2.0, 1.3, 0.0),  # z=0.0: ground is at z=0.0
                 rot=(math.sqrt(0.5), 0.0, 0.0, -math.sqrt(0.5)),  # (w,x,y,z) - 90° rotation around x-axis
             ),
