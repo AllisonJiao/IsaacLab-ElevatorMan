@@ -30,6 +30,7 @@ parser.add_argument(
     ),
 )
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
+parser.add_argument("--robot", type=str, default="G1", help="Type of robot to use (G1 or G2).")
 parser.add_argument("--sensitivity", type=float, default=1.0, help="Sensitivity factor.")
 parser.add_argument(
     "--enable_pinocchio",
@@ -43,6 +44,10 @@ AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
 app_launcher_args = vars(args_cli)
+
+# Set robot type as environment variable for environment config to access
+import os
+os.environ["ROBOT_TYPE"] = args_cli.robot
 
 if args_cli.enable_pinocchio:
     # Import pinocchio before AppLauncher to force the use of the version installed by IsaacLab and

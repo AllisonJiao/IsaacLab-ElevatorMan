@@ -9,12 +9,17 @@ from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Elevatorman scene configuration.")
-parser.add_argument("--robot", type=str, default="G1", help="Type of robot to use.")
+parser.add_argument("--robot", type=str, default=None, help="Type of robot to use.")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
+
+# If robot type not provided via CLI, check environment variable (for teleoperation script)
+if args_cli.robot is None:
+    import os
+    args_cli.robot = os.getenv("ROBOT_TYPE", "G1")  # Default to G1 if not set
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
