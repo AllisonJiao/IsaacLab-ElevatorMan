@@ -90,12 +90,12 @@ class MarketSceneCfg(InteractiveSceneCfg):
     agibot: ArticulationCfg = AGIBOT_A2D_CFG.replace(
         prim_path="/World/Agibot",
         spawn=AGIBOT_A2D_CFG.spawn.replace(
-            scale=(1.2, 1.2, 1.2),
+            scale=(1.0, 1.0, 1.0),
         ),
         init_state=ArticulationCfg.InitialStateCfg(
             joint_pos=AGIBOT_A2D_CFG.init_state.joint_pos,  # preserve original joint positions
-            pos=(0.0, 2.0, 1.3),
-            rot=(math.sqrt(0.5), 0.0, 0.0, -math.sqrt(0.5)), # (w,x,y,z)
+            pos=(0.0, 0.0, 0.0),
+            # rot=(math.sqrt(0.5), 0.0, 0.0, -math.sqrt(0.5)), # (w,x,y,z)
         ),
     )
 
