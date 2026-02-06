@@ -43,6 +43,7 @@ _CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = _CUR_DIR  # market_scene.py is in the project root
 
 MARKET_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "market", "market_flattened.usd")
+GOODS_SHELF_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "market", "GoodsShelf001", "GoodsShelf001.usd")
 DOME_LIGHT_PATH = os.path.join(_PROJECT_ROOT, "assets", "market", "textures", "HDRI.hdr")
 SMPL_USD_PATH = os.path.join(_PROJECT_ROOT, "assets", "SMPL_sample_animations", "flattened_SMPL.usd")
 
@@ -68,6 +69,28 @@ class MarketSceneCfg(InteractiveSceneCfg):
         ),
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 1.6)),
     )
+
+    # goods shelf
+    goods_shelf = AssetBaseCfg(
+        prim_path="/World/GoodsShelf",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=GOODS_SHELF_USD_PATH
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 1.2)),
+    )
+
+    # robot
+    # agibot: ArticulationCfg = AGIBOT_A2D_CFG.replace(
+    #     prim_path="/World/Agibot",
+    #     spawn=AGIBOT_A2D_CFG.spawn.replace(
+    #         scale=(1.2, 1.2, 1.2),
+    #     ),
+    #     init_state=ArticulationCfg.InitialStateCfg(
+    #         joint_pos=AGIBOT_A2D_CFG.init_state.joint_pos,  # preserve original joint positions
+    #         pos=(0.0, 2.0, 0.0),
+    #         rot=(math.sqrt(0.5), 0.0, 0.0, -math.sqrt(0.5)), # (w,x,y,z)
+    #     ),
+    # )
 
     # smpl
     smpl = AssetBaseCfg(
