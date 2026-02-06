@@ -4,26 +4,41 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import argparse
+import os
 
 from isaaclab.app import AppLauncher
 
-# add argparse arguments
-parser = argparse.ArgumentParser(description="Elevatorman scene configuration.")
-parser.add_argument("--robot", type=str, default=None, help="Type of robot to use.")
+# Check if robot type is set via environment variable (for teleoperation script)
+# This needs to be checked before argument parsing
+_robot_type_from_env = os.getenv("ROBOT_TYPE", None)
 
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
-args_cli = parser.parse_args()
-
-# If robot type not provided via CLI, check environment variable (for teleoperation script)
-if args_cli.robot is None:
-    import os
-    args_cli.robot = os.getenv("ROBOT_TYPE", "G1")  # Default to G1 if not set
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
+# Only parse arguments and launch app if this is the main script
+# When imported by other scripts (like teleoperation), skip argument parsing
+if __name__ == "__main__" or os.getenv("ISAACLAB_ELEVATORMAN_STANDALONE") == "1":
+    # add argparse arguments
+    parser = argparse.ArgumentParser(description="Elevatorman scene configuration.")
+    parser.add_argument("--robot", type=str, default=None, help="Type of robot to use.")
+    
+    # append AppLauncher cli args
+    AppLauncher.add_app_launcher_args(parser)
+    # parse the arguments
+    args_cli = parser.parse_args()
+    
+    # If robot type not provided via CLI, check environment variable
+    if args_cli.robot is None:
+        args_cli.robot = _robot_type_from_env if _robot_type_from_env else "G1"
+    
+    # launch omniverse app
+    app_launcher = AppLauncher(args_cli)
+    simulation_app = app_launcher.app
+else:
+    # When imported, create a minimal args_cli object with robot type from env
+    class ArgsNamespace:
+        def __init__(self):
+            self.robot = _robot_type_from_env if _robot_type_from_env else "G1"
+    
+    args_cli = ArgsNamespace()
+    simulation_app = None  # Will be set by the importing script
 
 """Rest everything follows."""
 
