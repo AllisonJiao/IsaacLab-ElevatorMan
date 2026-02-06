@@ -78,8 +78,7 @@ class MarketSceneCfg(InteractiveSceneCfg):
             usd_path=GOODS_SHELF_USD_PATH
         ),
         init_state=AssetBaseCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 0.0),
-            rot=(math.sqrt(0.5), math.sqrt(0.5), 0.0, 0.0), # (w,x,y,z)
+            pos=(0.0, 0.0, 1.2),
         ),
     )
 
