@@ -79,6 +79,7 @@ class MarketSceneCfg(InteractiveSceneCfg):
         ),
         init_state=AssetBaseCfg.InitialStateCfg(
             pos=(0.0, 0.0, 1.2),
+            rot=(math.sqrt(0.5), -math.sqrt(0.5), 0.0, 0.0),
         ),
     )
 
