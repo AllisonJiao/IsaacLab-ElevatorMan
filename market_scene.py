@@ -33,6 +33,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import os
+import math
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
@@ -76,7 +77,10 @@ class MarketSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.UsdFileCfg(
             usd_path=GOODS_SHELF_USD_PATH
         ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 1.2)),
+        init_state=AssetBaseCfg.InitialStateCfg(
+            pos=(0.0, 0.0, 0.0),
+            rot=(math.sqrt(0.5), math.sqrt(0.5), 0.0, 0.0), # (w,x,y,z)
+        ),
     )
 
     # robot
